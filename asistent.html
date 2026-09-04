@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sanal Asistan | Derya Kılıç</title>
+    <!-- CSS Dateipfad -->
+    <link rel="stylesheet" href="style.css">
+    <!-- FontAwesome Icon Bibliothek -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+
+    <!-- HEADER & NAVIGATION -->
+    <header>
+        <div class="logo-container">
+            <img src="logobaum.png" alt="Derya Kılıç Logo" class="tree-icon-img" onerror="this.outerHTML='<svg class=\'tree-icon-img\' viewBox=\'0 0 100 100\'><path d=\'M50 10 C30 40 20 50 20 70 A30 30 0 0 0 80 70 C80 50 70 40 50 10 Z\' fill=\'%238c6a56\'/></svg>'">
+            <div class="logo">DERYA KILIÇ</div>
+        </div>
+        <nav>
+            <a href="index.html">Ana Sayfa</a>
+            <a href="basari.html">Başarılarımız</a>
+            <a href="asistent.html" class="active">Asistan</a>
+            <a href="odeme.html">Ödeme</a>
+            <a href="portal.html" class="login-nav-btn">Danışan Portalı</a>
+            <div id="google_translate_element" class="custom-translate-box"></div>
+        </nav>
+    </header>
+
+    <!-- HAUPTINHALT: SANAL ASİSTAN -->
+    <main class="page-container">
+        <section class="assistant-card">
+            <div class="assistant-header">
+                <i class="fas fa-robot bot-avatar"></i>
+                <h2>Derya Kılıç Sanal Asistanı</h2>
+                <p>Sorularınızı yazın veya yanıtları sesli dinleyin.</p>
+            </div>
+
+            <!-- Chat Nachrichten-Verlauf -->
+            <div id="assistantChatBox" class="chat-messages-box">
+                <div class="message bot-msg">
+                    <p>Merhaba! Ben Derya Kılıç'ın dijital asistanıyım. Terapi seansları, randevular ve ücretler hakkında size nasıl yardımcı olabilirim?</p>
+                </div>
+            </div>
+
+            <!-- Eingabeformular -->
+            <form onsubmit="handleAssistantSubmit(event)" class="chat-input-form">
+                <input type="text" id="assistantInput" placeholder="Mesajınızı buraya yazın..." autocomplete="off" required>
+                <button type="submit" class="btn-send">
+                    <i class="fas fa-paper-plane"></i> Gönder
+                </button>
+            </form>
+        </section>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="dark-footer">
+        <div class="footer-container">
+            <div class="footer-col">
+                <h3>Derya Kılıç</h3>
+                <p>Psikolojik Danışmanlık ve Terapi Hizmetleri</p>
+            </div>
+            <div class="footer-col">
+                <h4>Hızlı Bağlantılar</h4>
+                <p><a href="index.html">Ana Sayfa</a></p>
+                <p><a href="portal.html">Randevu Al</a></p>
+                <p><a href="odeme.html">Online Ödeme</a></p>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 Derya Kılıç. Tüm hakları saklıdır.</p>
+        </div>
+    </footer>
+
+    <!-- JS Skripte -->
+    <script src="script.js"></script>
+</body>
+</html>

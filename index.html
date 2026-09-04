@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Derya Kılıç | Hipnoterapi & Deep EFT</title>
+    
+    <!-- CSS Verbindungen -->
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- FontAwesome für Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<!-- COOKIE MODAL POPUP -->
+<div id="cookieModalOverlay" class="cookie-overlay">
+    <div class="cookie-modal">
+        <div class="cookie-icon">🍪</div>
+        <h3>Çerez Tercihleri</h3>
+        <p>Bu web sitesi deneyiminizi geliştirmek ve güvenli bir hizmet sunmak için çerezler kullanmaktadır.</p>
+        <button id="btnAcceptCookies" class="btn-cookie-accept">Kabul Et & Devam Et</button>
+    </div>
+</div>
+
+<!-- FLOATING ASİSTAN BUTTON & POPUP -->
+<div id="asistanWidget" class="asistan-widget" onclick="toggleAsistanChat()">
+    <i class="fas fa-comment-dots"></i> <span>Asistan</span>
+</div>
+
+<div id="asistanModal" class="asistan-modal" style="display: none;">
+    <div class="asistan-modal-header">
+        <h4><i class="fas fa-robot"></i> Derya Kılıç Asistanı</h4>
+        <button onclick="toggleAsistanChat()" class="btn-close-asistan">&times;</button>
+    </div>
+    <div id="asistanChatBody" class="asistan-modal-body">
+        <div class="msg bot-msg">Merhaba! Ben Derya Hanım'ın dijital asistanı. Size nasıl yardımcı olabilirim?</div>
+    </div>
+    <form onsubmit="sendAsistanMessage(event)" class="asistan-modal-footer">
+        <input type="text" id="asistanMsgInput" placeholder="Mesajınızı yazın..." required>
+        <button type="submit"><i class="fas fa-paper-plane"></i></button>
+    </form>
+</div>
+
+<body>
+
+   <!-- Header / Navigation -->
+<header>
+    <div class="logo-container">
+        <img src="logobaum.png" alt="Derya Kılıç Logo" class="tree-icon-img">
+        <div class="logo">DERYA KILIÇ</div>
+    </div>
+    <nav>
+        <a href="index.html" class="active">Ana Sayfa</a>
+        <a href="index.html#about">Hakkımda</a>
+        <a href="index.html#services">Hizmetler</a>
+        <a href="index.html#pricing">Fiyatlar & Şartlar</a>
+        <a href="basari.html">Başarı Hikayeleri</a>
+        <a href="odeme.html">Ödeme</a>
+        <a href="portal.html" class="login-nav-btn"><i class="fas fa-user-lock"></i> Randevu Al / Portal Girişi</a>
+        
+        <!-- Feedback-Button -->
+        <a href="https://wa.me/491708296913?text=Merhaba,%20web%20siteniz%20hakkında%20geri%20bildirimde%20bulunmak%20istiyorum:" 
+           target="_blank" 
+           rel="noopener noreferrer" 
+           class="nav-feedback-btn">
+            <i class="fab fa-whatsapp"></i> Geri Bildirim
+        </a>
+
+        <!-- Google Translate Widget -->
+        <div id="google_translate_element" class="custom-translate-box"></div>
+    </nav>
+</header>
+    <main>
+        <!-- Hero Section -->
+        <section id="hero" class="hero page-section">
+            <div class="hero-content">
+                <h1>Derya Kılıç</h1>
+                <h2>Hipnoz & Deep EFT</h2>
+                
+                <blockquote class="quote">
+                    "Bilinç bir sokak görürken, bilinçaltı bütün bir şehri görür."
+                </blockquote>
+
+                <div class="button-group">
+                    <a href="https://wa.me/491708296913?text=Merhaba%20Derya%20Han%C4%B1m,%20bilgi%20almak%20istiyorum." target="_blank" rel="noopener" class="btn whatsapp-btn">
+                        <i class="fab fa-whatsapp"></i> WhatsApp
+                    </a>
+                    <a href="https://ig.me/m/deryakilic2829" target="_blank" rel="noopener" class="btn insta-btn">
+                        <i class="fab fa-instagram"></i> Instagram DM
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- Hakkımda Section -->
+        <section id="about" class="container about-section page-section">
+            <div class="about-content-wrapper">
+                <div class="about-text">
+                    <h2>Hoş Geldiniz</h2>
+                    <p class="quote-style">
+                        "Bedeninizi ve zihninizi hasta eden, yoran ve hayat kalitenizi düşüren bilmediğimiz yüklerden kurtularak engelleyici inançlardan arınarak hayatınıza daha sağlıklı ve özgür bir şekilde devam edebilmeniz için size eşlik ediyorum."
+                    </p>
+                    <p class="signature-style">- Derya Kılıç</p>
+                </div>
+                <div class="about-image">
+                    <div class="fancy-frame">
+                        <img src="profil.jpg" alt="Derya Kılıç Fotoğrafı" class="profile-img">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Hizmetler Section -->
+        <section id="services" class="container gray-bg page-section">
+            <h2>Hizmetlerim & Uzmanlık Alanları</h2>
+            
+            <!-- Dil Bilgisi Vurgu Kutusu -->
+            <div class="lang-info-card">
+                <i class="fas fa-info-circle"></i>
+                <p><strong>Önemli Bilgilendirme / Wichtiger Hinweis:</strong><br>
+                Tüm seanslarımız ve terapi hizmetlerimiz sadece <strong>Türkçe</strong> ve <strong>Almanca (Deutsch)</strong> dillerinde yürütülmektedir.<br>
+                <em>Alle Therapiesitzungen werden ausschließlich auf Deutsch und Türkisch angeboten.</em>
+                </p>
+            </div>
+
+            <div class="services-grid">
+                <div class="card highlight-card">
+                    <h3>💻 Online Terapi</h3>
+                    <p>Dünyanın her yerinden evinizin konforunda online terapi seanslarına katılabilirsiniz (Türkçe & Deutsch).</p>
+                </div>
+                <div class="card">
+                    <h3>Hipnoterapi</h3>
+                    <p>Bilinçaltı düzeyinde derin değişim ve dönüşüm çalışması.</p>
+                </div>
+                <div class="card">
+                    <h3>Deep EFT</h3>
+                    <p>Negatif duygulardan özgürleşme ve iyileşme tekniği.</p>
+                </div>
+                <div class="card">
+                    <h3>Bilişsel Davranışçı Terapi (BDT)</h3>
+                    <p>Düşünce, duygu ve davranış kalıplarını yeniden yapılandırma.</p>
+                </div>
+                <div class="card">
+                    <h3>Şema Terapisi</h3>
+                    <p>Kısıtlayıcı yaşam şemalarını fark etmek ve çocuklukta karşılanmamış duygusal ihtiyaçları bugün yetişkin bilinciyle karşılamak.</p>
+                </div>
+                <div class="card">
+                    <h3>Travma ve Yas Terapisi</h3>
+                    <p>Zorlu yaşam olaylarını işleme ve bu duyguları yönetme tekniği.</p>
+                </div>
+                <div class="card">
+                    <h3>Pozitif Psikoloji</h3>
+                    <p>Güçlü yönleri keşfetme ve yaşam kalitesini artırma.</p>
+                </div>
+                <div class="card">
+                    <h3>Mesnevi Terapisi</h3>
+                    <p>Hikaye ve sembollerle içsel şifa yöntemi.</p>
+                </div>
+                <div class="card">
+                    <h3>Manevi Danışmanlık</h3>
+                    <p>Ruhsal denge, zihinsel hafiflik, kalbin yüklerinden içsel huzura yolculuk.</p>
+                </div>
+                <div class="card">
+                    <h3>Regresyon</h3>
+                    <p>Geçmişin izlerinden özgürleşme, hatırlamadığınız yüklerden arınma.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Fiyatlar & İptal Şartları Section -->
+        <section id="pricing" class="container page-section">
+            <h2>Fiyat Listesi & Randevu İptal Koşulları</h2>
+            <div class="pricing-grid">
+                <div class="price-card highlight">
+                    <h3>Hipnoterapi</h3>
+                    <p class="price">170 €</p>
+                    <p>Seans başına (süre sınırı olmaksızın)</p>
+                </div>
+                <div class="price-card">
+                    <h3>Diğer Tüm Terapiler</h3>
+                    <p class="price">65 € / Saat</p>
+                    <p>1 Saat: 65 €<br>2 Saat: 130 € (+65 € / her ek saat)</p>
+                </div>
+            </div>
+
+            <div class="cancellation-policy-box">
+                <div class="policy-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                <div class="policy-text">
+                    <h4>Önemli Randevu İptal Politikası</h4>
+                    <p>Randevularınızı en geç <strong>24 saat öncesinden</strong> iptal etmeniz veya değiştirmeniz gerekmektedir. 24 saatten daha kısa bir süre kala yapılan iptallerde veya seansa gelinmediğinde seans ücreti tahsil edilir:</p>
+                    <ul>
+                        <li><strong>Deep EFT ve Diğer Terapiler:</strong> 65 €</li>
+                        <li><strong>Hipnoterapi Seansları:</strong> 170 €</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div style="text-align: center; margin-top: 25px;">
+                <a href="odeme.html" class="btn paypal-custom-btn">💳 Ödeme Detayları Sayfasına Git</a>
+            </div>
+        </section>
+
+        <!-- Danışan Yorumları Section -->
+        <section id="reviews-section" class="container gray-bg page-section">
+            <h2>Danışan Yorumları</h2>
+            <p class="section-desc">Terapi seanslarımızdan sonra danışanlarımızın bıraktığı değerlendirmeler.</p>
+            
+            <div id="comments-grid" class="comments-modern-grid"></div>
+
+            <div class="comment-form-container">
+                <h3><i class="far fa-edit"></i> Deneyiminizi Paylaşın</h3>
+                <form onsubmit="addComment(event)" class="comment-form-grid">
+                    <div class="form-group">
+                        <label for="commentName">Adınız / Rumuzunuz:</label>
+                        <input type="text" id="commentName" placeholder="Örn: Ayşe K." required>
+                    </div>
+                    <div class="form-group">
+                        <label for="commentStars">Puanınız:</label>
+                        <select id="commentStars" required>
+                            <option value="5">★★★★★ (5 Yıldız - Çok Memnun Kaldım)</option>
+                            <option value="4">★★★★☆ (4 Yıldız - İyi)</option>
+                            <option value="3">★★★☆☆ (3 Yıldız - Orta)</option>
+                            <option value="2">★★☆☆☆ (2 Yıldız)</option>
+                            <option value="1">★☆☆☆☆ (1 Yıldız)</option>
+                        </select>
+                    </div>
+                    <div class="form-group full-width">
+                        <label for="commentText">Yorumunuz:</label>
+                        <textarea id="commentText" rows="4" placeholder="Seans deneyiminizi ve hislerinizi buraya yazabilirsiniz..." required></textarea>
+                    </div>
+                    <div class="form-group full-width">
+                        <button type="submit" class="btn-submit-comment"><i class="fas fa-paper-plane"></i> Yorumu Gönder</button>
+                    </div>
+                </form>
+            </div>
+        </section>
+    </main>
+
+    <!-- FEEDBACK BANNER BOX -->
+<div class="feedback-card-container">
+    <div class="feedback-card-content">
+        <div class="feedback-icon">💡</div>
+        <div class="feedback-text">
+            <h3>Geri Bildiriminiz Bizim İçin Değerli!</h3>
+            <p>Sitemiz henüz test aşamasındadır. Tasarımına ve gelişimine katkıda bulunmak için görüşlerinizi bizimle paylaşabilirsiniz.</p>
+        </div>
+        <a href="https://wa.me/491708296913?text=Merhaba,%20web%20siteniz%20hakkında%20geri%20bildirimde%20bulunmak%20istiyorum:" 
+           target="_blank" 
+           rel="noopener noreferrer" 
+           class="feedback-wa-card-btn">
+            <i class="fab fa-whatsapp"></i> WhatsApp ile İletişime Geç
+        </a>
+    </div>
+</div>
+
+
+    
+    <!-- Footer -->
+    <footer class="dark-footer">
+        <div class="footer-container">
+            <div class="footer-col">
+                <h3>Derya Kılıç</h3>
+                <p>Hipnoterapi & Yaşam Koçluğu</p>
+                <p class="lang-footer-note"><i class="fas fa-globe"></i> Seans Dilleri: Türkçe & Deutsch</p>
+            </div>
+            <div class="footer-col">
+                <h4>INSTAGRAM</h4>
+                <p><a href="https://instagram.com/deryakilic2829" target="_blank" rel="noopener"><i class="fab fa-instagram"></i> @deryakilic2829</a></p>
+            </div>
+            <di<div class="footer-col">
+    <h4>İLETİŞİM</h4>
+    <p>
+        <a href="https://www.google.com/maps/search/?api=1&query=Biberweg+53,+70806+Kornwestheim" target="_blank" rel="noopener noreferrer" class="footer-address-link">
+            <i class="fas fa-map-marker-alt"></i> Biberweg 53, 70806 Kornwestheim
+        </a>
+    </p>
+    <p>
+        <a href="mailto:goldensunderya@hotmail.com" class="email-link">
+            <i class="fas fa-envelope"></i> goldensunderya@hotmail.com
+        </a>
+    </p>
+</div>
+            <div class="footer-col">
+                <h4>HIZLI ERİŞİM</h4>
+                <div class="footer-pills">
+                    <a href="impressum.html" class="pill">Künye / Impressum</a>
+                    <a href="datenschutz.html" class="pill">Gizlilik Politikası</a>
+                </div>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 Derya Kılıç. Tüm hakları saklıdır.</p>
+            <p class="credit">Tasarlayan: Betül Kılıç</p>
+        </div>
+    </footer>
+
+    <!-- Google Translate Script -->
+    <script type="text/javascript">
+        function googleTranslateElementInit() {
+            new google.translate.TranslateElement({
+                pageLanguage: 'tr',
+                includedLanguages: 'de,tr,fr,en,nl,ar,ru',
+                layout: google.translate.TranslateElement.InlineLayout.SIMPLE
+            }, 'google_translate_element');
+        }
+    </script>
+    <script type="text/javascript" src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+    <script src="script.js"></script>
+</body>
+</html>
