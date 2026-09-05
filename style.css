@@ -1125,3 +1125,42 @@ h2 { text-align: center; font-size: 2.2rem; color: var(--primary-color); margin-
         padding-right: 15px !important;
     }
 }
+/* ==========================================
+   FORMULAR-OPTIMIERUNG FÜR MOBILGERÄTE
+   ========================================== */
+@media (max-width: 768px) {
+    /* Eingabefelder untereinander stapeln statt nebeneinander */
+    .form-row, 
+    .comment-form-row {
+        flex-direction: column !important;
+        width: 100% !important;
+        gap: 12px !important;
+    }
+
+    /* Alle Eingabefelder auf 100% Breite begrenzen */
+    .form-group,
+    .form-control,
+    .comment-form input,
+    .comment-form select,
+    .comment-form textarea {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+    }
+
+    /* Formular-Container an Bildschirmlayout anpassen */
+    .comment-form-container,
+    .comment-card {
+        padding: 15px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+    }
+
+    /* Absende-Button anpassen */
+    .btn-submit,
+    .comment-form button {
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+}
