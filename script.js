@@ -88,7 +88,7 @@ function initCalendar(elementId, currentUserCode = null) {
     calendarEl.innerHTML = "";
 
     const appointments = getAppointments();
-    const isMaster = currentUserCode === 'derya' || currentUserCode === 'master';
+    const isMaster = currentUserCode === '28SENDK29' || currentUserCode === 'master';
 
     const events = appointments
         .filter(app => app.status === 'approved')
@@ -253,7 +253,7 @@ function handlePortalLogin(event) {
     localStorage.setItem("currentPortalUser", code.toLowerCase());
 
     // 1. MASTER-LOGIN (Spezielle Master-Codes für deine Mutter)
-    if (code.toLowerCase() === '28SENDK29' || code.toLowerCase() === 'master' || code.toUpperCase() === '28SENDK29') {
+    if (code.toLowerCase() === 'master' || code.toUpperCase() === '28SENDK29') {
         if (loginSection) loginSection.style.display = 'none';
         if (masterDashboard) masterDashboard.style.display = 'block';
         if (clientDashboard) clientDashboard.style.display = 'none';
@@ -291,7 +291,7 @@ function handlePortalLogin(event) {
    ========================================== */
 function loadMasterDashboard() {
     renderPendingAppointments();
-    initCalendar('masterCalendar', 'derya');
+    initCalendar('masterCalendar', '28SENDK29');
     populateClientSelect();
     renderMasterComments();
 }
@@ -343,7 +343,7 @@ function approveAppointment(id) {
     appToApprove.status = 'approved';
     saveAppointments(appointments);
     renderPendingAppointments();
-    initCalendar('masterCalendar', 'derya');
+    initCalendar('masterCalendar', '28SENDK29');
     alert("✅ Randevu onaylandı.");
 }
 
