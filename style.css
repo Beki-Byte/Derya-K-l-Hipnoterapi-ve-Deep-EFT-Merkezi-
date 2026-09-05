@@ -1075,3 +1075,53 @@ h2 { text-align: center; font-size: 2.2rem; color: var(--primary-color); margin-
 .feedback-wa-card-btn:hover {
     background-color: #128c7e;
 }
+/* ==========================================
+   MOBILE OPTIMIERUNG (HEADER & NAVIGATION)
+   ========================================== */
+@media (max-width: 768px) {
+    /* Verhindert das seitliche Rausrutschen der Seite */
+    html, body {
+        overflow-x: hidden;
+        width: 100%;
+    }
+
+    /* Header flexibel untereinander anordnen */
+    header {
+        flex-direction: column !important;
+        align-items: center !important;
+        padding: 10px 15px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+
+    /* Logo & Name zentrieren */
+    .logo-container {
+        margin-bottom: 10px !important;
+        justify-content: center !important;
+        text-align: center !important;
+    }
+
+    /* Menüleiste umbrechen und zentrieren */
+    nav {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        justify-content: center !important;
+        gap: 8px 12px !important;
+        width: 100% !important;
+    }
+
+    nav a {
+        font-size: 14px !important;
+        padding: 5px 8px !important;
+        white-space: nowrap !important;
+    }
+
+    /* Hero-Bereich auf Bildschirmbreite begrenzen */
+    .hero, .page-section {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+        padding-left: 15px !important;
+        padding-right: 15px !important;
+    }
+}
