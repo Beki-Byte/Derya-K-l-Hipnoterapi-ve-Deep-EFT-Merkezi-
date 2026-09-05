@@ -1076,16 +1076,15 @@ h2 { text-align: center; font-size: 2.2rem; color: var(--primary-color); margin-
     background-color: #128c7e;
 }
 /* ==========================================
-   MOBILE OPTIMIERUNG (HEADER & NAVIGATION)
+   GESAMTE MOBILE OPTIMIERUNG
    ========================================== */
 @media (max-width: 768px) {
-    /* Verhindert das seitliche Rausrutschen der Seite */
+    /* 1. Globales Layout & Header */
     html, body {
-        overflow-x: hidden;
-        width: 100%;
+        overflow-x: hidden !important;
+        width: 100% !important;
     }
 
-    /* Header flexibel untereinander anordnen */
     header {
         flex-direction: column !important;
         align-items: center !important;
@@ -1094,14 +1093,12 @@ h2 { text-align: center; font-size: 2.2rem; color: var(--primary-color); margin-
         box-sizing: border-box !important;
     }
 
-    /* Logo & Name zentrieren */
     .logo-container {
         margin-bottom: 10px !important;
         justify-content: center !important;
         text-align: center !important;
     }
 
-    /* Menüleiste umbrechen und zentrieren */
     nav {
         display: flex !important;
         flex-wrap: wrap !important;
@@ -1116,7 +1113,6 @@ h2 { text-align: center; font-size: 2.2rem; color: var(--primary-color); margin-
         white-space: nowrap !important;
     }
 
-    /* Hero-Bereich auf Bildschirmbreite begrenzen */
     .hero, .page-section {
         width: 100% !important;
         max-width: 100% !important;
@@ -1124,71 +1120,73 @@ h2 { text-align: center; font-size: 2.2rem; color: var(--primary-color); margin-
         padding-left: 15px !important;
         padding-right: 15px !important;
     }
-}
-/* ==========================================
-   FORMULAR-OPTIMIERUNG FÜR MOBILGERÄTE
-   ========================================== */
-@media (max-width: 768px) {
-    /* Eingabefelder untereinander stapeln statt nebeneinander */
+
+    /* 2. Formular & Eingabefelder (Kommentare / Kontakt) */
+    form div, 
+    .form-group, 
     .form-row, 
-    .comment-form-row {
+    .comment-form-row,
+    .comment-form > div {
+        display: flex !important;
         flex-direction: column !important;
         width: 100% !important;
-        gap: 12px !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+        margin-right: 0 !important;
+        margin-left: 0 !important;
     }
 
-    /* Alle Eingabefelder auf 100% Breite begrenzen */
-    .form-group,
+    input, 
+    select, 
+    textarea, 
     .form-control,
     .comment-form input,
     .comment-form select,
     .comment-form textarea {
         width: 100% !important;
         max-width: 100% !important;
+        min-width: 0 !important;
         box-sizing: border-box !important;
     }
 
-    /* Formular-Container an Bildschirmlayout anpassen */
-    .comment-form-container,
-    .comment-card {
-        padding: 15px !important;
+    textarea {
+        resize: vertical !important;
+    }
+
+    .comment-form-container, 
+    .comment-card, 
+    form {
         width: 100% !important;
+        max-width: 100% !important;
         box-sizing: border-box !important;
         overflow: hidden !important;
+        padding: 15px !important;
     }
 
-    /* Absende-Button anpassen */
     .btn-submit,
     .comment-form button {
         width: 100% !important;
         box-sizing: border-box !important;
     }
-}
-/* ==========================================
-   KALENDER-HEADER OPTIMIERUNG (MOBIL)
-   ========================================== */
-@media (max-width: 768px) {
-    /* Kalender-Kopfzeile untereinander anordnen */
+
+    /* 3. Kalender (FullCalendar) */
     .fc .fc-toolbar {
         flex-direction: column !important;
         gap: 10px !important;
         align-items: center !important;
     }
 
-    /* Titel (z. B. Eylül 2026) zentrieren und Schriftgröße anpassen */
     .fc .fc-toolbar-title {
         font-size: 1.1rem !important;
         text-align: center !important;
         margin: 5px 0 !important;
     }
 
-    /* Button-Gruppen flexibel gestalten */
     .fc .fc-button-group {
         display: inline-flex !important;
         gap: 4px !important;
     }
 
-    /* Buttons kleiner & handlicher auf dem Smartphone machen */
     .fc .fc-button {
         padding: 4px 8px !important;
         font-size: 12px !important;
