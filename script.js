@@ -253,7 +253,7 @@ function handlePortalLogin(event) {
     localStorage.setItem("currentPortalUser", code.toLowerCase());
 
     // 1. MASTER-LOGIN (Spezielle Master-Codes für deine Mutter)
-    if (code.toLowerCase() === 'derya' || code.toLowerCase() === 'master' || code.toUpperCase() === '28SENDK29') {
+    if (code.toLowerCase() === '28SENDK29' || code.toLowerCase() === 'master' || code.toUpperCase() === '28SENDK29') {
         if (loginSection) loginSection.style.display = 'none';
         if (masterDashboard) masterDashboard.style.display = 'block';
         if (clientDashboard) clientDashboard.style.display = 'none';
