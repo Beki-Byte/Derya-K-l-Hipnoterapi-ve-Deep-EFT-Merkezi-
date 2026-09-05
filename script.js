@@ -688,3 +688,25 @@ function escapeHTML(str) {
         }[tag] || tag)
     );
 }
+
+/* ==========================================
+   LOGOUT FUNKTION (Gilt für Master & Klienten)
+   ========================================== */
+function logoutPortal() {
+    // 1. Alle Login-Informationen aus dem Browserspeicher löschen
+    localStorage.removeItem("portalAccessCode");
+    sessionStorage.removeItem("portalAccessCode");
+    localStorage.removeItem("currentUserRole");
+
+    // 2. Dashboards im Fenster direkt ausblenden
+    const masterDash = document.getElementById("masterDashboard");
+    const clientDash = document.getElementById("clientDashboard");
+    const loginSec = document.getElementById("portalLoginSection");
+
+    if (masterDash) masterDash.style.display = "none";
+    if (clientDash) clientDash.style.display = "none";
+    if (loginSec) loginSec.style.display = "block";
+
+    // 3. Zur Startseite umleiten
+    window.location.href = "index.html";
+}
