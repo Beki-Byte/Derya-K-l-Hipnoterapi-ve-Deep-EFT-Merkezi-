@@ -1164,3 +1164,33 @@ h2 { text-align: center; font-size: 2.2rem; color: var(--primary-color); margin-
         box-sizing: border-box !important;
     }
 }
+/* ==========================================
+   KALENDER-HEADER OPTIMIERUNG (MOBIL)
+   ========================================== */
+@media (max-width: 768px) {
+    /* Kalender-Kopfzeile untereinander anordnen */
+    .fc .fc-toolbar {
+        flex-direction: column !important;
+        gap: 10px !important;
+        align-items: center !important;
+    }
+
+    /* Titel (z. B. Eylül 2026) zentrieren und Schriftgröße anpassen */
+    .fc .fc-toolbar-title {
+        font-size: 1.1rem !important;
+        text-align: center !important;
+        margin: 5px 0 !important;
+    }
+
+    /* Button-Gruppen flexibel gestalten */
+    .fc .fc-button-group {
+        display: inline-flex !important;
+        gap: 4px !important;
+    }
+
+    /* Buttons kleiner & handlicher auf dem Smartphone machen */
+    .fc .fc-button {
+        padding: 4px 8px !important;
+        font-size: 12px !important;
+    }
+}
