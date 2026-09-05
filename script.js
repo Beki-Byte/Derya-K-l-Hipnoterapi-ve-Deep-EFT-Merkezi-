@@ -227,7 +227,6 @@ function handleBookingSubmit(event) {
     
     initCalendar('clientCalendar', currentCode);
 }
-
 /* ==========================================
    4. PORTAL LOGIN SYSTEM
    ========================================== */
@@ -253,7 +252,8 @@ function handlePortalLogin(event) {
 
     localStorage.setItem("currentPortalUser", code.toLowerCase());
 
-    if (code.toLowerCase() === 'derya' || code.toLowerCase() === 'master') {
+    // 1. MASTER-LOGIN (Spezielle Master-Codes für deine Mutter)
+    if (code.toLowerCase() === 'derya' || code.toLowerCase() === 'master' || code.toUpperCase() === '28SENDK29') {
         if (loginSection) loginSection.style.display = 'none';
         if (masterDashboard) masterDashboard.style.display = 'block';
         if (clientDashboard) clientDashboard.style.display = 'none';
@@ -263,8 +263,10 @@ function handlePortalLogin(event) {
         return;
     }
 
+    // 2. KLIENTEN-LOGIN (Strikte Prüfung: Der Code MUSS bei der Mutter gespeichert sein)
     const clients = JSON.parse(localStorage.getItem("app_clients")) || {};
-    if (clients[code.toUpperCase()] || code.length >= 3) {
+    
+    if (clients[code.toUpperCase()]) {
         if (loginSection) loginSection.style.display = 'none';
         if (masterDashboard) masterDashboard.style.display = 'none';
         if (clientDashboard) clientDashboard.style.display = 'block';
@@ -272,20 +274,17 @@ function handlePortalLogin(event) {
 
         loadClientDashboard(code.toUpperCase());
     } else {
+        // Zugriff verweigert für ungefügte Codes wie "kjlkj"
         if (errorMsg) {
-            errorMsg.innerText = "❌ Geçersiz giriş kodu!";
+            errorMsg.innerText = "❌ Geçersiz giriş kodu! Lütfen geçerli bir kod giriniz.";
             errorMsg.style.display = 'block';
         }
     }
 }
 
-function logoutPortal() {
-    localStorage.removeItem("currentPortalUser");
-    document.getElementById('masterDashboard').style.display = 'none';
-    document.getElementById('clientDashboard').style.display = 'none';
-    document.getElementById('loginSection').style.display = 'block';
-    document.getElementById('accessCode').value = '';
-}
+
+    
+
 
 /* ==========================================
    5. MASTER DASHBOARD (DERYA KILIÇ)
