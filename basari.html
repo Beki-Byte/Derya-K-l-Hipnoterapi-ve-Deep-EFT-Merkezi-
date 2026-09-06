@@ -150,6 +150,29 @@
                 layout: google.translate.TranslateElement.InlineLayout.SIMPLE
             }, 'google_translate_element');
         }
+        <script type="module">
+  // Import the functions you need from the SDKs you need
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-analytics.js";
+  // TODO: Add SDKs for Firebase products that you want to use
+  // https://firebase.google.com/docs/web/setup#available-libraries
+
+  // Your web app's Firebase configuration
+  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+  const firebaseConfig = {
+    apiKey: "AIzaSyBYSifQ5m7G_sdyN0JAkkC8SV6x9gY0-Oo",
+    authDomain: "derya-kilic-website.firebaseapp.com",
+    projectId: "derya-kilic-website",
+    storageBucket: "derya-kilic-website.firebasestorage.app",
+    messagingSenderId: "493728541181",
+    appId: "1:493728541181:web:d361a4ca1c8dff5ed65194",
+    measurementId: "G-DE18012D63"
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  const analytics = getAnalytics(app);
+</script>
     </script>
     <script type="text/javascript" src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
     <script src="script.js"></script>
