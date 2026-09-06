@@ -49,19 +49,6 @@ function initCookieBanner() {
 
     if (cookieOverlay) {
         cookieOverlay.style.display = "flex";
-    } else {
-        const banner = document.createElement("div");
-        banner.className = "cookie-overlay-box";
-        banner.id = "cookieBox";
-        banner.innerHTML = `
-            <div style="font-size:24px; margin-bottom:5px;">🍪</div>
-            <p style="margin:0; font-size:0.88rem; color:#444;">
-                Bu web sitesi deneyiminizi geliştirmek ve güvenli bir hizmet sunmak için çerezler kullanmaktadır.
-            </p>
-            <button id="btnAcceptInline" class="cookie-btn-accept">Kabul Et / Akzeptieren</button>
-        `;
-        document.body.appendChild(banner);
-        document.getElementById("btnAcceptInline")?.addEventListener("click", acceptCookiesNow);
     }
 
     if (acceptBtn) {
@@ -71,8 +58,6 @@ function initCookieBanner() {
 
 window.acceptCookiesNow = function() {
     localStorage.setItem("cookies_accepted", "true");
-    const box = document.getElementById("cookieBox");
-    if (box) box.remove();
     const cookieOverlay = document.getElementById("cookieModalOverlay");
     if (cookieOverlay) cookieOverlay.style.display = "none";
 };
@@ -639,94 +624,6 @@ window.addComment = async function(event) {
     }
 };
 
-/* ==========================================
-   8. INTELLIGENTER ASİSTAN CHAT
-   ========================================== */
-window.toggleAsistanChat = function() {
-    const modal = document.getElementById("asistanModal") || document.getElementById("assistantModal");
-    if (!modal) return;
-    modal.style.display = (modal.style.display === "none" || modal.style.display === "") ? "flex" : "none";
-};
-
-window.handleAssistantSubmit = function(event) {
-    event.preventDefault();
-    const input = document.getElementById("asistanMsgInput") || document.getElementById("assistantInput");
-    const chatBox = document.getElementById("asistanChatBody") || document.getElementById("assistantChatBox");
-    
-    if (!input || !chatBox) return;
-
-    const text = input.value.trim();
-    if (!text) return;
-
-    const userDiv = document.createElement("div");
-    userDiv.className = "msg user-msg message";
-    userDiv.style.cssText = "background: #8c6a56; color: white; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px; text-align: right; margin-left: 20px; font-size: 14px;";
-    userDiv.innerText = text;
-    chatBox.appendChild(userDiv);
-
-    input.value = "";
-    chatBox.scrollTop = chatBox.scrollHeight;
-
-    setTimeout(() => {
-        const botReply = generateAssistantReply(text);
-        
-        const botDiv = document.createElement("div");
-        botDiv.className = "msg bot-msg message";
-        botDiv.style.cssText = "background: #e8dfd8; color: #333; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px; font-size: 14px; line-height: 1.4;";
-        botDiv.innerText = botReply;
-        chatBox.appendChild(botDiv);
-
-        chatBox.scrollTop = chatBox.scrollHeight;
-    }, 600);
-};
-
-window.sendAsistanMessage = function(event) {
-    window.handleAssistantSubmit(event);
-};
-
-function generateAssistantReply(query) {
-    const q = query.toLowerCase().trim();
-
-    if (q.includes("çıkama") || q.includes("cikama") || q.includes("kalır mıyım") || q.includes("kalir miyim")) {
-        return "Kesinlikle hayır. Hipnoz derin bir gevşeme halidir ve uyku değildir. İstediğiniz an gözlerinizi açıp hipnozdan çıkabilirsiniz. Hipnozda takılı kalmak gibi bir durum tıbben ve psikolojik olarak mümkün değildir.";
-    }
-    if (q.includes("bilinç") || q.includes("bilinc") || q.includes("kayıp") || q.includes("kayip") || q.includes("kontrol")) {
-        return "Hayır, ne Hipnozda ne de Deep EFT çalışmalarında bilincinizi veya kontrolünüzü kaybetmezsiniz. Tüm süreç boyunca ne konuştuğunuzun farkında olursunuz ve kontrol tamamen sizdedir.";
-    }
-    if (q.includes("sır") || q.includes("sir") || q.includes("istemediğim") || q.includes("istemedigim")) {
-        return "Hipnoz esnasında istemediğiniz hiçbir şeyi söylemezsiniz veya yapmazsınız. Zihniniz ve etik değerleriniz sizi her zaman korur.";
-    }
-    if (q.includes("zarar") || q.includes("yan etki") || q.includes("tehlikeli")) {
-        return "Hipnoz ve Deep EFT tamamen doğal ve güvenli yöntemlerdir. Hiçbir yan etkisi veya tehlikesi yoktur. Sadece derin bir zihinsel ve bedensel rahatlama sağlarsınız.";
-    }
-    if (q.includes("unuttum") || q.includes("kaybettim") || q.includes("şifre") || q.includes("sifre") || q.includes("hatırlamıyorum") || q.includes("hatirlamiyorum")) {
-        return "Giriş kodunuzu unuttuysanız endişelenmeyin! Bize WhatsApp veya Instagram DM üzerinden adınız ve soyadınızla ulaşırsanız, kodunuzu size hemen tekrar iletebiliriz.";
-    }
-    if (q.includes("hipnoz") || q.includes("hypnose")) {
-        return "Hipnoterapi seans ücreti 170 €'dur. Hipnoz, bilinçaltınızdaki olumsuz inançları ve blokajları dönüştürmek için kullanılan son derece etkili ve güvenli bir yöntemdir.";
-    }
-    if (q.includes("eft") || q.includes("deep eft")) {
-        return "Deep EFT seansları saatlik 65 €'dur. Bedenimizdeki enerji meridyenlerine hafif dokunuşlar yaparak geçmiş travmaları ve duygusal yükleri serbest bırakma yöntemidir.";
-    }
-    if (q.includes("ucret") || q.includes("fiyat") || q.includes("preis") || q.includes("kosten") || q.includes("ödeme") || q.includes("odeme") || q.includes("paypal")) {
-        return "Hipnoterapi seans ücreti 170 €'dur. Deep EFT ve diğer seanslar ise saatlik 65 €'dur. Ödemelerinizi Ödeme sayfamız üzerinden PayPal ile gerçekleştirebilirsiniz.";
-    }
-    if (q.includes("kod") || q.includes("giris") || q.includes("giriş") || q.includes("portal")) {
-        return "Danışan portalı giriş kodunuz seansınız onaylandıktan sonra size özel olarak iletilir. Kodunuzu unuttuysanız veya ilk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
-    }
-    if (q.includes("randevu") || q.includes("termin") || q.includes("seans")) {
-        return "Randevu almak için Danışan Portalı üzerinden uygun tarih ve saati seçebilirsiniz. İlk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
-    }
-    if (q.includes("merhaba") || q.includes("selam") || q.includes("hallo")) {
-        return "Merhaba! Derya Kılıç Sanal Asistanına hoş geldiniz. Terapi yöntemleri, randevu süreci veya aklınıza takılan sorular hakkında bana danışabilirsiniz. İlk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
-    }
-    if (q.includes("teşekkür") || q.includes("tesekkur") || q.includes("sağol") || q.includes("danke")) {
-        return "Rica ederim! Aklınıza takılan başka bir soru olursa her zaman buradayım.";
-    }
-
-    return "Size nasıl yardımcı olabilirim? Terapi seansları (Hipnoz/EFT), randevular, giriş kodları ve ücretlerimiz hakkında soru sorabilirsiniz. İlk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
-}
-
 function escapeHTML(str) {
     if (!str) return "";
     return str.replace(/[&<>'"]/g, 
@@ -741,7 +638,7 @@ function escapeHTML(str) {
 }
 
 /* ==========================================
-   9. LOGOUT FUNKTION
+   8. LOGOUT FUNKTION
    ========================================== */
 window.logoutPortal = function() {
     localStorage.removeItem("currentPortalUser");
@@ -758,91 +655,4 @@ window.logoutPortal = function() {
     if (loginSec) loginSec.style.display = "block";
 
     window.location.href = "index.html";
-};
-       
-        return [];
-    }
-}
-
-async function renderComments() {
-    const grid = document.getElementById("comments-grid");
-    if (!grid) return;
-
-    const comments = await getComments();
-    grid.innerHTML = comments.map(c => `
-        <div class="comment-card">
-            <div class="comment-header">
-                <strong>${escapeHTML(c.name)}</strong>
-                <span class="stars">${"★".repeat(c.stars)}${"☆".repeat(5 - c.stars)}</span>
-            </div>
-            <p>${escapeHTML(c.text)}</p>
-        </div>
-    `).join("");
-}
-
-async function renderMasterComments() {
-    const list = document.getElementById("masterCommentsList");
-    if (!list) return;
-
-    const comments = await getComments();
-    list.innerHTML = comments.map(c => `
-        <div class="master-comment-item" style="padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
-            <div>
-                <strong>${escapeHTML(c.name)}</strong> (${"★".repeat(c.stars)})<br>
-                <small>${escapeHTML(c.text)}</small>
-            </div>
-            <button onclick="deleteComment('${c.id}')" class="btn-delete-comment" style="background:#c0392b; color:#fff; border:none; padding:5px 10px; border-radius:3px; cursor:pointer;"><i class="fas fa-trash"></i> Yorumu Sil</button>
-        </div>
-    `).join("");
-}
-
-window.deleteComment = async function(id) {
-    if (confirm("Bu yorumu silmek istediğinize emin misiniz?")) {
-        try {
-            await deleteDoc(doc(db, "comments", id));
-            renderMasterComments();
-            renderComments();
-            alert("✅ Yorum silindi.");
-        } catch (e) {
-            console.error("Hata (deleteComment):", e);
-        }
-    }
-};
-
-window.addComment = async function(event) {
-    event.preventDefault();
-
-    const nameInput = document.getElementById("commentName");
-    const starsSelect = document.getElementById("commentStars");
-    const textInput = document.getElementById("commentText");
-
-    if (!nameInput || !starsSelect || !textInput) return;
-
-    const name = nameInput.value.trim();
-    const stars = parseInt(starsSelect.value, 10);
-    const text = textInput.value.trim();
-
-    if (!name || !text) {
-        alert("Lütfen adınızı ve yorumunuzu giriniz.");
-        return;
-    }
-
-    try {
-        await addDoc(collection(db, "comments"), {
-            name: name,
-            stars: stars,
-            text: text,
-            createdAt: new Date().toISOString()
-        });
-
-        renderComments();
-        nameInput.value = "";
-        textInput.value = "";
-        starsSelect.value = "5";
-
-        alert("✅ Yorumunuz başarıyla gönderildi ve kaydedildi!");
-    } catch (e) {
-        console.error("Hata (addComment):", e);
-        alert("⚠️ Yorum gönderilirken bir hata oluştu.");
-    }
 };
