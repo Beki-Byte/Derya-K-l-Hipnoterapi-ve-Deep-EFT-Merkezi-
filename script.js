@@ -1,4 +1,35 @@
 /* ==========================================
+   FIREBASE MODULAR IMPORTS & INITIALISIERUNG
+   ========================================== */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+import { 
+    getFirestore, 
+    collection, 
+    getDocs, 
+    doc, 
+    getDoc, 
+    setDoc, 
+    addDoc, 
+    updateDoc, 
+    deleteDoc, 
+    query, 
+    orderBy 
+} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyBYSifQ5m7G_sdyN0JAkkC8SV6x9gY0-Oo",
+    authDomain: "derya-kilic-website.firebaseapp.com",
+    projectId: "derya-kilic-website",
+    storageBucket: "derya-kilic-website.firebasestorage.app",
+    messagingSenderId: "493728541181",
+    appId: "1:493728541181:web:d361a4ca1c8dff5ed65194",
+    measurementId: "G-DE18012D63"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+/* ==========================================
    1. INITIALISIERUNG & COOKIE BANNER
    ========================================== */
 document.addEventListener("DOMContentLoaded", () => {
@@ -27,9 +58,10 @@ function initCookieBanner() {
             <p style="margin:0; font-size:0.88rem; color:#444;">
                 Bu web sitesi deneyiminizi geliştirmek ve güvenli bir hizmet sunmak için çerezler kullanmaktadır.
             </p>
-            <button onclick="acceptCookiesNow()" class="cookie-btn-accept">Kabul Et / Akzeptieren</button>
+            <button id="btnAcceptInline" class="cookie-btn-accept">Kabul Et / Akzeptieren</button>
         `;
         document.body.appendChild(banner);
+        document.getElementById("btnAcceptInline")?.addEventListener("click", acceptCookiesNow);
     }
 
     if (acceptBtn) {
@@ -37,57 +69,67 @@ function initCookieBanner() {
     }
 }
 
-function acceptCookiesNow() {
+window.acceptCookiesNow = function() {
     localStorage.setItem("cookies_accepted", "true");
     const box = document.getElementById("cookieBox");
     if (box) box.remove();
     const cookieOverlay = document.getElementById("cookieModalOverlay");
     if (cookieOverlay) cookieOverlay.style.display = "none";
-}
+};
 
 /* ==========================================
    2. DANIŞAN & ÖDEV TEMİZLİK LOGİĞİ
    ========================================== */
-function getAppointments() {
-    return JSON.parse(localStorage.getItem("app_appointments")) || [];
+async function getAppointments() {
+    try {
+        const querySnapshot = await getDocs(collection(db, "appointments"));
+        return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+    } catch (e) {
+        console.error("Hata (getAppointments):", e);
+        return [];
+    }
 }
 
-function saveAppointments(appointments) {
-    localStorage.setItem("app_appointments", JSON.stringify(appointments));
-}
+async function cleanExpiredHomework() {
+    try {
+        const clientsSnap = await getDocs(collection(db, "clients"));
+        const appointments = await getAppointments();
+        const now = new Date();
 
-function cleanExpiredHomework() {
-    const clients = JSON.parse(localStorage.getItem("app_clients")) || {};
-    const appointments = getAppointments();
-    const now = new Date();
+        for (const docSnap of clientsSnap.docs) {
+            const client = docSnap.data();
+            if (client.homeworkDate) {
+                const hwDate = new Date(client.homeworkDate);
+                const diffDays = (now - hwDate) / (1000 * 3600 * 24);
+                const hasPassedApp = appointments.some(app => 
+                    app.clientCode === client.code && 
+                    new Date(app.date) <= now && 
+                    app.status === 'approved'
+                );
 
-    Object.keys(clients).forEach(code => {
-        const client = clients[code];
-        if (client.homeworkDate) {
-            const hwDate = new Date(client.homeworkDate);
-            const diffDays = (now - hwDate) / (1000 * 3600 * 24);
-            const hasPassedApp = appointments.some(app => app.clientCode === client.code && new Date(app.date) <= now && app.status === 'approved');
-
-            if (diffDays >= 7 || hasPassedApp) {
-                client.homework = "Henüz tanımlanmış ödeviniz bulunmuyor.";
-                client.homeworkDate = null;
+                if (diffDays >= 7 || hasPassedApp) {
+                    await updateDoc(doc(db, "clients", docSnap.id), {
+                        homework: "Henüz tanımlanmış ödeviniz bulunmuyor.",
+                        homeworkDate: null
+                    });
+                }
             }
         }
-    });
-
-    localStorage.setItem("app_clients", JSON.stringify(clients));
+    } catch (e) {
+        console.error("Hata (cleanExpiredHomework):", e);
+    }
 }
 
 /* ==========================================
    3. KALENDER SYSTEM & ANZEIGELOGIK
    ========================================== */
-function initCalendar(elementId, currentUserCode = null) {
+async function initCalendar(elementId, currentUserCode = null) {
     const calendarEl = document.getElementById(elementId);
     if (!calendarEl) return;
 
     calendarEl.innerHTML = "";
 
-    const appointments = getAppointments();
+    const appointments = await getAppointments();
     const isMaster = currentUserCode === '28SENDK29' || currentUserCode === 'master';
 
     const events = appointments
@@ -128,7 +170,7 @@ function initCalendar(elementId, currentUserCode = null) {
                 const dateInput = document.getElementById('selectedDate');
                 if (dateInput) dateInput.value = info.dateStr;
             },
-            eventClick: function(info) {
+            eventClick: async function(info) {
                 const app = info.event.extendedProps;
                 const isMine = app.clientCode && currentUserCode && app.clientCode.toLowerCase() === currentUserCode.toLowerCase();
 
@@ -143,7 +185,7 @@ function initCalendar(elementId, currentUserCode = null) {
                         `Bu randevuyu iptal etmek / silmek istiyor musunuz?`
                     );
                     if (confirmCancel) {
-                        deleteAppointment(app.id);
+                        await deleteAppointment(app.id);
                         initCalendar(elementId, currentUserCode);
                     }
                 } else if (isMine) {
@@ -155,7 +197,7 @@ function initCalendar(elementId, currentUserCode = null) {
                         `Randevunuzu iptal etmek istiyor musunuz?`
                     );
                     if (confirmCancel) {
-                        deleteAppointment(app.id);
+                        await deleteAppointment(app.id);
                         initCalendar(elementId, currentUserCode);
                     }
                 } else {
@@ -167,14 +209,16 @@ function initCalendar(elementId, currentUserCode = null) {
     }
 }
 
-function deleteAppointment(id) {
-    let appointments = getAppointments();
-    appointments = appointments.filter(app => app.id != id);
-    saveAppointments(appointments);
-    alert("✅ Randevu başarıyla iptal edildi.");
+async function deleteAppointment(id) {
+    try {
+        await deleteDoc(doc(db, "appointments", id));
+        alert("✅ Randevu başarıyla iptal edildi.");
+    } catch (e) {
+        console.error("Hata (deleteAppointment):", e);
+    }
 }
 
-function handleBookingSubmit(event) {
+window.handleBookingSubmit = async function(event) {
     event.preventDefault();
 
     const currentCode = localStorage.getItem("currentPortalUser") || "";
@@ -185,7 +229,7 @@ function handleBookingSubmit(event) {
     const time = document.getElementById("selectedTime").value;
     const service = document.getElementById("serviceType").value;
 
-    const appointments = getAppointments();
+    const appointments = await getAppointments();
     const isConflict = appointments.some(app => app.date === date && app.time === time && app.status === 'approved');
 
     if (isConflict) {
@@ -194,7 +238,6 @@ function handleBookingSubmit(event) {
     }
 
     const newAppointment = {
-        id: Date.now(),
         clientCode: currentCode,
         name,
         email,
@@ -202,35 +245,41 @@ function handleBookingSubmit(event) {
         date,
         time,
         service,
-        status: 'pending'
+        status: 'pending',
+        createdAt: new Date().toISOString()
     };
 
-    appointments.push(newAppointment);
-    saveAppointments(appointments);
+    try {
+        await addDoc(collection(db, "appointments"), newAppointment);
 
-    const mailSubject = encodeURIComponent(`Yeni Randevu Talebi: ${name}`);
-    const mailBody = encodeURIComponent(
-        `Merhaba Derya Hanım,\n\nYeni bir randevu talebi oluşturuldu:\n\n` +
-        `Danışan: ${name}\n` +
-        `E-Posta: ${email}\n` +
-        `Telefon: ${phone}\n` +
-        `Tarih: ${date}\n` +
-        `Saat: ${time}\n` +
-        `Hizmet: ${service}\n\n` +
-        `Talebi onaylamak için Yönetim Paneline giriş yapabilirsiniz.`
-    );
+        const mailSubject = encodeURIComponent(`Yeni Randevu Talebi: ${name}`);
+        const mailBody = encodeURIComponent(
+            `Merhaba Derya Hanım,\n\nYeni bir randevu talebi oluşturuldu:\n\n` +
+            `Danışan: ${name}\n` +
+            `E-Posta: ${email}\n` +
+            `Telefon: ${phone}\n` +
+            `Tarih: ${date}\n` +
+            `Saat: ${time}\n` +
+            `Hizmet: ${service}\n\n` +
+            `Talebi onaylamak için Yönetim Paneline giriş yapabilirsiniz.`
+        );
 
-    window.location.href = `mailto:goldensunderya@hotmail.com?subject=${mailSubject}&body=${mailBody}`;
+        window.location.href = `mailto:goldensunderya@hotmail.com?subject=${mailSubject}&body=${mailBody}`;
 
-    alert("✅ Randevu talebiniz başarıyla alındı! Derya Hanım onayladıktan sonra randevunuz takvimde kesinleşecektir.");
-    document.getElementById("appointmentForm").reset();
-    
-    initCalendar('clientCalendar', currentCode);
-}
+        alert("✅ Randevu talebiniz başarıyla alındı! Derya Hanım onayladıktan sonra randevunuz takvimde kesinleşecektir.");
+        document.getElementById("appointmentForm").reset();
+        
+        initCalendar('clientCalendar', currentCode);
+    } catch (e) {
+        console.error("Hata (handleBookingSubmit):", e);
+        alert("⚠️ Bir hata oluştu. Lütfen tekrar deneyiniz.");
+    }
+};
+
 /* ==========================================
    4. PORTAL LOGIN SYSTEM
    ========================================== */
-function handlePortalLogin(event) {
+window.handlePortalLogin = async function(event) {
     if (event) event.preventDefault();
 
     const input = document.getElementById('accessCode');
@@ -252,7 +301,7 @@ function handlePortalLogin(event) {
 
     localStorage.setItem("currentPortalUser", code.toLowerCase());
 
-    // 1. MASTER-LOGIN (Spezielle Master-Codes für deine Mutter)
+    // Master-Login
     if (code.toLowerCase() === 'master' || code.toUpperCase() === '28SENDK29') {
         if (loginSection) loginSection.style.display = 'none';
         if (masterDashboard) masterDashboard.style.display = 'block';
@@ -263,31 +312,31 @@ function handlePortalLogin(event) {
         return;
     }
 
-    // 2. KLIENTEN-LOGIN (Strikte Prüfung: Der Code MUSS bei der Mutter gespeichert sein)
-    const clients = JSON.parse(localStorage.getItem("app_clients")) || {};
-    
-    if (clients[code.toUpperCase()]) {
-        if (loginSection) loginSection.style.display = 'none';
-        if (masterDashboard) masterDashboard.style.display = 'none';
-        if (clientDashboard) clientDashboard.style.display = 'block';
-        if (errorMsg) errorMsg.style.display = 'none';
+    // Klienten-Login über Firestore
+    try {
+        const docRef = doc(db, "clients", code.toUpperCase());
+        const docSnap = await getDoc(docRef);
 
-        loadClientDashboard(code.toUpperCase());
-    } else {
-        // Zugriff verweigert für ungefügte Codes wie "kjlkj"
-        if (errorMsg) {
-            errorMsg.innerText = "❌ Geçersiz giriş kodu! Lütfen geçerli bir kod giriniz.";
-            errorMsg.style.display = 'block';
+        if (docSnap.exists()) {
+            if (loginSection) loginSection.style.display = 'none';
+            if (masterDashboard) masterDashboard.style.display = 'none';
+            if (clientDashboard) clientDashboard.style.display = 'block';
+            if (errorMsg) errorMsg.style.display = 'none';
+
+            loadClientDashboard(code.toUpperCase());
+        } else {
+            if (errorMsg) {
+                errorMsg.innerText = "❌ Geçersiz giriş kodu! Lütfen geçerli bir kod giriniz.";
+                errorMsg.style.display = 'block';
+            }
         }
+    } catch (e) {
+        console.error("Hata (handlePortalLogin):", e);
     }
-}
-
-
-    
-
+};
 
 /* ==========================================
-   5. MASTER DASHBOARD (DERYA KILIÇ)
+   5. MASTER DASHBOARD
    ========================================== */
 function loadMasterDashboard() {
     renderPendingAppointments();
@@ -296,11 +345,11 @@ function loadMasterDashboard() {
     renderMasterComments();
 }
 
-function renderPendingAppointments() {
+async function renderPendingAppointments() {
     const listEl = document.getElementById("pendingAppointmentsList");
     if (!listEl) return;
 
-    const appointments = getAppointments().filter(app => app.status === 'pending');
+    const appointments = (await getAppointments()).filter(app => app.status === 'pending');
 
     if (appointments.length === 0) {
         listEl.innerHTML = "<p class='no-data'>Bekleyen randevu talebi bulunmuyor.</p>";
@@ -315,158 +364,179 @@ function renderPendingAppointments() {
                 📞 ${app.phone} | ✉️ ${app.email}
             </div>
             <div class="pending-actions">
-                <button onclick="approveAppointment(${app.id})" class="btn-approve" style="background:#27ae60; color:#fff; border:none; padding: 6px 12px; border-radius:4px; cursor:pointer; margin-right: 5px;">Onayla</button>
-                <button onclick="rejectAppointment(${app.id})" class="btn-reject" style="background:#c0392b; color:#fff; border:none; padding: 6px 12px; border-radius:4px; cursor:pointer;">Reddet</button>
+                <button onclick="approveAppointment('${app.id}')" class="btn-approve" style="background:#27ae60; color:#fff; border:none; padding: 6px 12px; border-radius:4px; cursor:pointer; margin-right: 5px;">Onayla</button>
+                <button onclick="rejectAppointment('${app.id}')" class="btn-reject" style="background:#c0392b; color:#fff; border:none; padding: 6px 12px; border-radius:4px; cursor:pointer;">Reddet</button>
             </div>
         </div>
     `).join("");
 }
 
-function approveAppointment(id) {
-    let appointments = getAppointments();
-    const appToApprove = appointments.find(a => a.id === id);
+window.approveAppointment = async function(id) {
+    try {
+        const appointments = await getAppointments();
+        const appToApprove = appointments.find(a => a.id === id);
 
-    if (!appToApprove) return;
+        if (!appToApprove) return;
 
-    const hasConflict = appointments.some(app => 
-        app.id !== id && 
-        app.date === appToApprove.date && 
-        app.time === appToApprove.time && 
-        app.status === 'approved'
-    );
+        const hasConflict = appointments.some(app => 
+            app.id !== id && 
+            app.date === appToApprove.date && 
+            app.time === appToApprove.time && 
+            app.status === 'approved'
+        );
 
-    if (hasConflict) {
-        alert(`⚠️ Dikkat! ${appToApprove.date} tarihinde ve saat ${appToApprove.time} için zaten onaylanmış başka bir randevu var.`);
-        return;
+        if (hasConflict) {
+            alert(`⚠️ Dikkat! ${appToApprove.date} tarihinde ve saat ${appToApprove.time} için zaten onaylanmış başka bir randevu var.`);
+            return;
+        }
+
+        await updateDoc(doc(db, "appointments", id), { status: 'approved' });
+        renderPendingAppointments();
+        initCalendar('masterCalendar', '28SENDK29');
+        alert("✅ Randevu onaylandı.");
+    } catch (e) {
+        console.error("Hata (approveAppointment):", e);
     }
+};
 
-    appToApprove.status = 'approved';
-    saveAppointments(appointments);
+window.rejectAppointment = async function(id) {
+    await deleteAppointment(id);
     renderPendingAppointments();
-    initCalendar('masterCalendar', '28SENDK29');
-    alert("✅ Randevu onaylandı.");
-}
+};
 
-function rejectAppointment(id) {
-    deleteAppointment(id);
-    renderPendingAppointments();
-}
-
-function addNewClient(e) {
+window.addNewClient = async function(e) {
     e.preventDefault();
     const code = document.getElementById("newClientCode").value.trim().toUpperCase();
     const name = document.getElementById("newClientName").value.trim();
 
     if (!code || !name) return;
 
-    const clients = JSON.parse(localStorage.getItem("app_clients")) || {};
-    clients[code] = {
-        code,
-        name,
-        homework: "Henüz tanımlanmış ödeviniz bulunmuyor.",
-        homeworkDate: null,
-        payment: "0 €",
-        privateNotes: ""
-    };
+    try {
+        await setDoc(doc(db, "clients", code), {
+            code,
+            name,
+            homework: "Henüz tanımlanmış ödeviniz bulunmuyor.",
+            homeworkDate: null,
+            payment: "0 €",
+            privateNotes: ""
+        });
 
-    localStorage.setItem("app_clients", JSON.stringify(clients));
-    alert(`✅ Yeni Danışan Eklendi! Kod: ${code}`);
-    document.getElementById("newClientCode").value = "";
-    document.getElementById("newClientName").value = "";
-    populateClientSelect();
-}
+        alert(`✅ Yeni Danışan Eklendi! Kod: ${code}`);
+        document.getElementById("newClientCode").value = "";
+        document.getElementById("newClientName").value = "";
+        populateClientSelect();
+    } catch (e) {
+        console.error("Hata (addNewClient):", e);
+    }
+};
 
-function deleteClientAccount() {
+window.deleteClientAccount = async function() {
     const select = document.getElementById("clientSelect");
     const code = select.value;
 
     if (!code) return;
 
     if (confirm(`⚠️ ${code} kodlu danışan hesabını silmek istediğinize emin misiniz?`)) {
-        const clients = JSON.parse(localStorage.getItem("app_clients")) || {};
-        delete clients[code];
-        localStorage.setItem("app_clients", JSON.stringify(clients));
-        alert("✅ Danışan hesabı başarıyla silindi.");
-        populateClientSelect();
+        try {
+            await deleteDoc(doc(db, "clients", code));
+            alert("✅ Danışan hesabı başarıyla silindi.");
+            populateClientSelect();
+        } catch (e) {
+            console.error("Hata (deleteClientAccount):", e);
+        }
     }
-}
+};
 
-function populateClientSelect() {
+async function populateClientSelect() {
     const select = document.getElementById("clientSelect");
     if (!select) return;
 
-    const clients = JSON.parse(localStorage.getItem("app_clients")) || {};
-    const keys = Object.keys(clients);
+    try {
+        const querySnapshot = await getDocs(collection(db, "clients"));
+        if (querySnapshot.empty) {
+            select.innerHTML = "<option value=''>Kayıtlı Danışan Yok</option>";
+            return;
+        }
 
-    if (keys.length === 0) {
-        select.innerHTML = "<option value=''>Kayıtlı Danışan Yok</option>";
-        return;
-    }
+        select.innerHTML = querySnapshot.docs.map(docSnap => {
+            const data = docSnap.data();
+            return `<option value="${docSnap.id}">${data.name} (${docSnap.id})</option>`;
+        }).join("");
 
-    select.innerHTML = keys.map(k => `<option value="${k}">${clients[k].name} (${k})</option>`).join("");
-    loadClientData();
-}
-
-function loadClientData() {
-    const select = document.getElementById("clientSelect");
-    const code = select.value;
-    if (!code) return;
-
-    const clients = JSON.parse(localStorage.getItem("app_clients")) || {};
-    const client = clients[code];
-
-    if (client) {
-        const hw = document.getElementById("clientHomework");
-        const pay = document.getElementById("clientPayment");
-        const notes = document.getElementById("clientPrivateNotes");
-
-        if (hw) hw.value = client.homework || "";
-        if (pay) pay.value = client.payment || "";
-        if (notes) notes.value = client.privateNotes || "";
+        loadClientData();
+    } catch (e) {
+        console.error("Hata (populateClientSelect):", e);
     }
 }
 
-function saveClientData() {
+window.loadClientData = async function() {
     const select = document.getElementById("clientSelect");
-    const code = select.value;
+    const code = select?.value;
     if (!code) return;
 
-    const clients = JSON.parse(localStorage.getItem("app_clients")) || {};
-    if (clients[code]) {
-        const hw = document.getElementById("clientHomework");
-        const pay = document.getElementById("clientPayment");
-        const notes = document.getElementById("clientPrivateNotes");
+    try {
+        const docSnap = await getDoc(doc(db, "clients", code));
+        if (docSnap.exists()) {
+            const client = docSnap.data();
+            const hw = document.getElementById("clientHomework");
+            const pay = document.getElementById("clientPayment");
+            const notes = document.getElementById("clientPrivateNotes");
 
-        clients[code].homework = hw ? hw.value : "";
-        clients[code].homeworkDate = new Date().toISOString();
-        clients[code].payment = pay ? pay.value : "";
-        clients[code].privateNotes = notes ? notes.value : "";
+            if (hw) hw.value = client.homework || "";
+            if (pay) pay.value = client.payment || "";
+            if (notes) notes.value = client.privateNotes || "";
+        }
+    } catch (e) {
+        console.error("Hata (loadClientData):", e);
+    }
+};
 
-        localStorage.setItem("app_clients", JSON.stringify(clients));
+window.saveClientData = async function() {
+    const select = document.getElementById("clientSelect");
+    const code = select?.value;
+    if (!code) return;
+
+    const hw = document.getElementById("clientHomework");
+    const pay = document.getElementById("clientPayment");
+    const notes = document.getElementById("clientPrivateNotes");
+
+    try {
+        await updateDoc(doc(db, "clients", code), {
+            homework: hw ? hw.value : "",
+            homeworkDate: new Date().toISOString(),
+            payment: pay ? pay.value : "",
+            privateNotes: notes ? notes.value : ""
+        });
         alert("✅ Danışan bilgileri güncellendi!");
+    } catch (e) {
+        console.error("Hata (saveClientData):", e);
     }
-}
+};
 
 /* ==========================================
    6. CLIENT DASHBOARD LOGIK
    ========================================== */
-function loadClientDashboard(code) {
-    cleanExpiredHomework();
-    const clients = JSON.parse(localStorage.getItem("app_clients")) || {};
-    const client = clients[code];
+async function loadClientDashboard(code) {
+    await cleanExpiredHomework();
 
     const welcomeTitle = document.getElementById("clientWelcomeTitle");
     const homeworkEl = document.getElementById("displayHomework");
     const paymentEl = document.getElementById("displayPayment");
     const nameInput = document.getElementById("clientName");
 
-    if (client) {
-        if (welcomeTitle) welcomeTitle.innerText = `Hoş Geldiniz, ${client.name}`;
-        if (homeworkEl) homeworkEl.innerText = client.homework || "Henüz tanımlanmış ödeviniz bulunmuyor.";
-        if (paymentEl) paymentEl.innerText = client.payment || "0 €";
-        if (nameInput) nameInput.value = client.name;
-    } else {
-        if (welcomeTitle) welcomeTitle.innerText = `Hoş Geldiniz (${code})`;
+    try {
+        const docSnap = await getDoc(doc(db, "clients", code));
+        if (docSnap.exists()) {
+            const client = docSnap.data();
+            if (welcomeTitle) welcomeTitle.innerText = `Hoş Geldiniz, ${client.name}`;
+            if (homeworkEl) homeworkEl.innerText = client.homework || "Henüz tanımlanmış ödeviniz bulunmuyor.";
+            if (paymentEl) paymentEl.innerText = client.payment || "0 €";
+            if (nameInput) nameInput.value = client.name;
+        } else {
+            if (welcomeTitle) welcomeTitle.innerText = `Hoş Geldiniz (${code})`;
+        }
+    } catch (e) {
+        console.error("Hata (loadClientDashboard):", e);
     }
 
     initCalendar('clientCalendar', code);
@@ -475,57 +545,63 @@ function loadClientDashboard(code) {
 /* ==========================================
    7. YORUM YÖNETİMİ
    ========================================== */
-function getComments() {
-    return JSON.parse(localStorage.getItem("app_comments")) || [];
-}
-
-function renderComments() {
-    const grid = document.getElementById("comments-grid");
-    if (!grid) return;
-
-    const comments = getComments();
-    grid.innerHTML = comments.map(c => `
-        <div class="comment-card">
-            <div class="comment-header">
-                <strong>${c.name}</strong>
-                <span class="stars">${"★".repeat(c.stars)}${"☆".repeat(5 - c.stars)}</span>
-            </div>
-            <p>${c.text}</p>
-        </div>
-    `).join("");
-}
-
-function renderMasterComments() {
-    const list = document.getElementById("masterCommentsList");
-    if (!list) return;
-
-    const comments = getComments();
-    list.innerHTML = comments.map(c => `
-        <div class="master-comment-item" style="padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
-            <div>
-                <strong>${c.name}</strong> (${"★".repeat(c.stars)})<br>
-                <small>${c.text}</small>
-            </div>
-            <button onclick="deleteComment(${c.id})" class="btn-delete-comment" style="background:#c0392b; color:#fff; border:none; padding:5px 10px; border-radius:3px; cursor:pointer;"><i class="fas fa-trash"></i> Yorumu Sil</button>
-        </div>
-    `).join("");
-}
-
-function deleteComment(id) {
-    if (confirm("Bu yorumu silmek istediğinize emin misiniz?")) {
-        let comments = getComments();
-        comments = comments.filter(c => c.id !== id);
-        localStorage.setItem("app_comments", JSON.stringify(comments));
-        renderMasterComments();
-        renderComments();
-        alert("✅ Yorum silindi.");
+async function getComments() {
+    try {
+        const q = query(collection(db, "comments"), orderBy("createdAt", "desc"));
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+    } catch (e) {
+        console.error("Hata (getComments):", e);
+        return [];
     }
 }
 
-/* ==========================================
-   YENİ KOMUT: YORUM EKLEME (ADD COMMENT)
-   ========================================== */
-function addComment(event) {
+async function renderComments() {
+    const grid = document.getElementById("comments-grid");
+    if (!grid) return;
+
+    const comments = await getComments();
+    grid.innerHTML = comments.map(c => `
+        <div class="comment-card">
+            <div class="comment-header">
+                <strong>${escapeHTML(c.name)}</strong>
+                <span class="stars">${"★".repeat(c.stars)}${"☆".repeat(5 - c.stars)}</span>
+            </div>
+            <p>${escapeHTML(c.text)}</p>
+        </div>
+    `).join("");
+}
+
+async function renderMasterComments() {
+    const list = document.getElementById("masterCommentsList");
+    if (!list) return;
+
+    const comments = await getComments();
+    list.innerHTML = comments.map(c => `
+        <div class="master-comment-item" style="padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <strong>${escapeHTML(c.name)}</strong> (${"★".repeat(c.stars)})<br>
+                <small>${escapeHTML(c.text)}</small>
+            </div>
+            <button onclick="deleteComment('${c.id}')" class="btn-delete-comment" style="background:#c0392b; color:#fff; border:none; padding:5px 10px; border-radius:3px; cursor:pointer;"><i class="fas fa-trash"></i> Yorumu Sil</button>
+        </div>
+    `).join("");
+}
+
+window.deleteComment = async function(id) {
+    if (confirm("Bu yorumu silmek istediğinize emin misiniz?")) {
+        try {
+            await deleteDoc(doc(db, "comments", id));
+            renderMasterComments();
+            renderComments();
+            alert("✅ Yorum silindi.");
+        } catch (e) {
+            console.error("Hata (deleteComment):", e);
+        }
+    }
+};
+
+window.addComment = async function(event) {
     event.preventDefault();
 
     const nameInput = document.getElementById("commentName");
@@ -543,41 +619,36 @@ function addComment(event) {
         return;
     }
 
-    const newComment = {
-        id: Date.now(),
-        name: name,
-        stars: stars,
-        text: text
-    };
+    try {
+        await addDoc(collection(db, "comments"), {
+            name: name,
+            stars: stars,
+            text: text,
+            createdAt: new Date().toISOString()
+        });
 
-    const comments = getComments();
-    comments.unshift(newComment); // Fügt den neuen Kommentar oben an
+        renderComments();
+        nameInput.value = "";
+        textInput.value = "";
+        starsSelect.value = "5";
 
-    localStorage.setItem("app_comments", JSON.stringify(comments));
-
-    // UI aktualisieren & Formular zurücksetzen
-    renderComments();
-    nameInput.value = "";
-    textInput.value = "";
-    starsSelect.value = "5";
-
-    alert("✅ Yorumunuz başarıyla gönderildi ve kaydedildi!");
-}
+        alert("✅ Yorumunuz başarıyla gönderildi ve kaydedildi!");
+    } catch (e) {
+        console.error("Hata (addComment):", e);
+        alert("⚠️ Yorum gönderilirken bir hata oluştu.");
+    }
+};
 
 /* ==========================================
-   8. INTELLIGENTER ASİSTAN CHAT (SMART KI LOGIK)
+   8. INTELLIGENTER ASİSTAN CHAT
    ========================================== */
-function toggleAsistanChat() {
+window.toggleAsistanChat = function() {
     const modal = document.getElementById("asistanModal") || document.getElementById("assistantModal");
     if (!modal) return;
-    if (modal.style.display === "none" || modal.style.display === "") {
-        modal.style.display = "flex";
-    } else {
-        modal.style.display = "none";
-    }
-}
+    modal.style.display = (modal.style.display === "none" || modal.style.display === "") ? "flex" : "none";
+};
 
-function handleAssistantSubmit(event) {
+window.handleAssistantSubmit = function(event) {
     event.preventDefault();
     const input = document.getElementById("asistanMsgInput") || document.getElementById("assistantInput");
     const chatBox = document.getElementById("asistanChatBody") || document.getElementById("assistantChatBox");
@@ -587,7 +658,6 @@ function handleAssistantSubmit(event) {
     const text = input.value.trim();
     if (!text) return;
 
-    // Nachricht des Nutzers anzeigen
     const userDiv = document.createElement("div");
     userDiv.className = "msg user-msg message";
     userDiv.style.cssText = "background: #8c6a56; color: white; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px; text-align: right; margin-left: 20px; font-size: 14px;";
@@ -597,7 +667,6 @@ function handleAssistantSubmit(event) {
     input.value = "";
     chatBox.scrollTop = chatBox.scrollHeight;
 
-    // KI-Antwort generieren und nach kurzer Verzögerung anzeigen
     setTimeout(() => {
         const botReply = generateAssistantReply(text);
         
@@ -609,75 +678,57 @@ function handleAssistantSubmit(event) {
 
         chatBox.scrollTop = chatBox.scrollHeight;
     }, 600);
-}
+};
 
-function sendAsistanMessage(event) {
-    handleAssistantSubmit(event);
-}
+window.sendAsistanMessage = function(event) {
+    window.handleAssistantSubmit(event);
+};
 
 function generateAssistantReply(query) {
     const q = query.toLowerCase().trim();
 
-    // A. HYPNOSE & ÄNGSTE
     if (q.includes("çıkama") || q.includes("cikama") || q.includes("kalır mıyım") || q.includes("kalir miyim")) {
         return "Kesinlikle hayır. Hipnoz derin bir gevşeme halidir ve uyku değildir. İstediğiniz an gözlerinizi açıp hipnozdan çıkabilirsiniz. Hipnozda takılı kalmak gibi bir durum tıbben ve psikolojik olarak mümkün değildir.";
     }
-
     if (q.includes("bilinç") || q.includes("bilinc") || q.includes("kayıp") || q.includes("kayip") || q.includes("kontrol")) {
         return "Hayır, ne Hipnozda ne de Deep EFT çalışmalarında bilincinizi veya kontrolünüzü kaybetmezsiniz. Tüm süreç boyunca ne konuştuğunuzun farkında olursunuz ve kontrol tamamen sizdedir.";
     }
-
     if (q.includes("sır") || q.includes("sir") || q.includes("istemediğim") || q.includes("istemedigim")) {
         return "Hipnoz esnasında istemediğiniz hiçbir şeyi söylemezsiniz veya yapmazsınız. Zihniniz ve etik değerleriniz sizi her zaman korur.";
     }
-
     if (q.includes("zarar") || q.includes("yan etki") || q.includes("tehlikeli")) {
         return "Hipnoz ve Deep EFT tamamen doğal ve güvenli yöntemlerdir. Hiçbir yan etkisi veya tehlikesi yoktur. Sadece derin bir zihinsel ve bedensel rahatlama sağlarsınız.";
     }
-
-    // B. CODE VERGESSEN / UNUTTUM (NEU)
     if (q.includes("unuttum") || q.includes("kaybettim") || q.includes("şifre") || q.includes("sifre") || q.includes("hatırlamıyorum") || q.includes("hatirlamiyorum")) {
         return "Giriş kodunuzu unuttuysanız endişelenmeyin! Bize WhatsApp veya Instagram DM üzerinden adınız ve soyadınızla ulaşırsanız, kodunuzu size hemen tekrar iletebiliriz.";
     }
-
-    // C. SEANS & METHODEN
     if (q.includes("hipnoz") || q.includes("hypnose")) {
         return "Hipnoterapi seans ücreti 170 €'dur. Hipnoz, bilinçaltınızdaki olumsuz inançları ve blokajları dönüştürmek için kullanılan son derece etkili ve güvenli bir yöntemdir.";
     }
-
     if (q.includes("eft") || q.includes("deep eft")) {
         return "Deep EFT seansları saatlik 65 €'dur. Bedenimizdeki enerji meridyenlerine hafif dokunuşlar yaparak geçmiş travmaları ve duygusal yükleri serbest bırakma yöntemidir.";
     }
-
-    // D. ÜCRET & ÖDEME
     if (q.includes("ucret") || q.includes("fiyat") || q.includes("preis") || q.includes("kosten") || q.includes("ödeme") || q.includes("odeme") || q.includes("paypal")) {
         return "Hipnoterapi seans ücreti 170 €'dur. Deep EFT ve diğer seanslar ise saatlik 65 €'dur. Ödemelerinizi Ödeme sayfamız üzerinden PayPal ile gerçekleştirebilirsiniz.";
     }
-
-    // E. CODE / PORTAL ALLGEMEIN
     if (q.includes("kod") || q.includes("giris") || q.includes("giriş") || q.includes("portal")) {
         return "Danışan portalı giriş kodunuz seansınız onaylandıktan sonra size özel olarak iletilir. Kodunuzu unuttuysanız veya ilk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
     }
-
-    // F. RANDEVU
     if (q.includes("randevu") || q.includes("termin") || q.includes("seans")) {
         return "Randevu almak için Danışan Portalı üzerinden uygun tarih ve saati seçebilirsiniz. İlk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
     }
-
-    // G. SELAMLAMA / TEŞEKKÜR
     if (q.includes("merhaba") || q.includes("selam") || q.includes("hallo")) {
         return "Merhaba! Derya Kılıç Sanal Asistanına hoş geldiniz. Terapi yöntemleri, randevu süreci veya aklınıza takılan sorular hakkında bana danışabilirsiniz. İlk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
     }
-
     if (q.includes("teşekkür") || q.includes("tesekkur") || q.includes("sağol") || q.includes("danke")) {
         return "Rica ederim! Aklınıza takılan başka bir soru olursa her zaman buradayım.";
     }
 
-    // H. DEFAULT FALLBACK
     return "Size nasıl yardımcı olabilirim? Terapi seansları (Hipnoz/EFT), randevular, giriş kodları ve ücretlerimiz hakkında soru sorabilirsiniz. İlk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
 }
 
 function escapeHTML(str) {
+    if (!str) return "";
     return str.replace(/[&<>'"]/g, 
         tag => ({
             '&': '&amp;',
@@ -690,23 +741,3821 @@ function escapeHTML(str) {
 }
 
 /* ==========================================
-   LOGOUT FUNKTION (Gilt für Master & Klienten)
+   9. LOGOUT FUNKTION
    ========================================== */
-function logoutPortal() {
-    // 1. Alle Login-Informationen aus dem Browserspeicher löschen
+window.logoutPortal = function() {
+    localStorage.removeItem("currentPortalUser");
     localStorage.removeItem("portalAccessCode");
     sessionStorage.removeItem("portalAccessCode");
     localStorage.removeItem("currentUserRole");
 
-    // 2. Dashboards im Fenster direkt ausblenden
     const masterDash = document.getElementById("masterDashboard");
     const clientDash = document.getElementById("clientDashboard");
-    const loginSec = document.getElementById("portalLoginSection");
+    const loginSec = document.getElementById("loginSection") || document.getElementById("portalLoginSection");
 
     if (masterDash) masterDash.style.display = "none";
     if (clientDash) clientDash.style.display = "none";
     if (loginSec) loginSec.style.display = "block";
 
-    // 3. Zur Startseite umleiten
     window.location.href = "index.html";
+};/* ==========================================
+   FIREBASE MODULAR IMPORTS & INITIALISIERUNG
+   ========================================== */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+import { 
+    getFirestore, 
+    collection, 
+    getDocs, 
+    doc, 
+    getDoc, 
+    setDoc, 
+    addDoc, 
+    updateDoc, 
+    deleteDoc, 
+    query, 
+    orderBy 
+} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyBYSifQ5m7G_sdyN0JAkkC8SV6x9gY0-Oo",
+    authDomain: "derya-kilic-website.firebaseapp.com",
+    projectId: "derya-kilic-website",
+    storageBucket: "derya-kilic-website.firebasestorage.app",
+    messagingSenderId: "493728541181",
+    appId: "1:493728541181:web:d361a4ca1c8dff5ed65194",
+    measurementId: "G-DE18012D63"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+/* ==========================================
+   1. INITIALISIERUNG & COOKIE BANNER
+   ========================================== */
+document.addEventListener("DOMContentLoaded", () => {
+    renderComments();
+    cleanExpiredHomework();
+    initCookieBanner();
+});
+
+function initCookieBanner() {
+    const cookieOverlay = document.getElementById("cookieModalOverlay");
+    const acceptBtn = document.getElementById("btnAcceptCookies");
+
+    if (localStorage.getItem("cookies_accepted") === "true") {
+        if (cookieOverlay) cookieOverlay.style.display = "none";
+        return;
+    }
+
+    if (cookieOverlay) {
+        cookieOverlay.style.display = "flex";
+    } else {
+        const banner = document.createElement("div");
+        banner.className = "cookie-overlay-box";
+        banner.id = "cookieBox";
+        banner.innerHTML = `
+            <div style="font-size:24px; margin-bottom:5px;">🍪</div>
+            <p style="margin:0; font-size:0.88rem; color:#444;">
+                Bu web sitesi deneyiminizi geliştirmek ve güvenli bir hizmet sunmak için çerezler kullanmaktadır.
+            </p>
+            <button id="btnAcceptInline" class="cookie-btn-accept">Kabul Et / Akzeptieren</button>
+        `;
+        document.body.appendChild(banner);
+        document.getElementById("btnAcceptInline")?.addEventListener("click", acceptCookiesNow);
+    }
+
+    if (acceptBtn) {
+        acceptBtn.addEventListener("click", acceptCookiesNow);
+    }
 }
+
+window.acceptCookiesNow = function() {
+    localStorage.setItem("cookies_accepted", "true");
+    const box = document.getElementById("cookieBox");
+    if (box) box.remove();
+    const cookieOverlay = document.getElementById("cookieModalOverlay");
+    if (cookieOverlay) cookieOverlay.style.display = "none";
+};
+
+/* ==========================================
+   2. DANIŞAN & ÖDEV TEMİZLİK LOGİĞİ
+   ========================================== */
+async function getAppointments() {
+    try {
+        const querySnapshot = await getDocs(collection(db, "appointments"));
+        return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+    } catch (e) {
+        console.error("Hata (getAppointments):", e);
+        return [];
+    }
+}
+
+async function cleanExpiredHomework() {
+    try {
+        const clientsSnap = await getDocs(collection(db, "clients"));
+        const appointments = await getAppointments();
+        const now = new Date();
+
+        for (const docSnap of clientsSnap.docs) {
+            const client = docSnap.data();
+            if (client.homeworkDate) {
+                const hwDate = new Date(client.homeworkDate);
+                const diffDays = (now - hwDate) / (1000 * 3600 * 24);
+                const hasPassedApp = appointments.some(app => 
+                    app.clientCode === client.code && 
+                    new Date(app.date) <= now && 
+                    app.status === 'approved'
+                );
+
+                if (diffDays >= 7 || hasPassedApp) {
+                    await updateDoc(doc(db, "clients", docSnap.id), {
+                        homework: "Henüz tanımlanmış ödeviniz bulunmuyor.",
+                        homeworkDate: null
+                    });
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Hata (cleanExpiredHomework):", e);
+    }
+}
+
+/* ==========================================
+   3. KALENDER SYSTEM & ANZEIGELOGIK
+   ========================================== */
+async function initCalendar(elementId, currentUserCode = null) {
+    const calendarEl = document.getElementById(elementId);
+    if (!calendarEl) return;
+
+    calendarEl.innerHTML = "";
+
+    const appointments = await getAppointments();
+    const isMaster = currentUserCode === '28SENDK29' || currentUserCode === 'master';
+
+    const events = appointments
+        .filter(app => app.status === 'approved')
+        .map(app => {
+            const isMine = app.clientCode && currentUserCode && app.clientCode.toLowerCase() === currentUserCode.toLowerCase();
+            let title = 'DOLU / Besetzt';
+            let color = '#c0392b';
+
+            if (isMaster) {
+                title = `${app.name} (${app.service})`;
+                color = '#8c725d';
+            } else if (isMine) {
+                title = `Randevunuz: ${app.service}`;
+                color = '#27ae60';
+            }
+
+            return {
+                id: app.id.toString(),
+                title: title,
+                start: `${app.date}T${app.time}`,
+                color: color,
+                extendedProps: app
+            };
+        });
+
+    if (typeof FullCalendar !== 'undefined') {
+        const calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            locale: 'tr',
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek'
+            },
+            events: events,
+            dateClick: function(info) {
+                const dateInput = document.getElementById('selectedDate');
+                if (dateInput) dateInput.value = info.dateStr;
+            },
+            eventClick: async function(info) {
+                const app = info.event.extendedProps;
+                const isMine = app.clientCode && currentUserCode && app.clientCode.toLowerCase() === currentUserCode.toLowerCase();
+
+                if (isMaster) {
+                    const confirmCancel = confirm(
+                        `📅 RANDEVU DETAYLARI:\n\n` +
+                        `Danışan: ${app.name}\n` +
+                        `Telefon: ${app.phone}\n` +
+                        `E-Posta: ${app.email}\n` +
+                        `Tarih: ${app.date} Saat: ${app.time}\n` +
+                        `Hizmet: ${app.service}\n\n` +
+                        `Bu randevuyu iptal etmek / silmek istiyor musunuz?`
+                    );
+                    if (confirmCancel) {
+                        await deleteAppointment(app.id);
+                        initCalendar(elementId, currentUserCode);
+                    }
+                } else if (isMine) {
+                    const confirmCancel = confirm(
+                        `🟢 SİZİN RANDEVUNUZ:\n\n` +
+                        `Tarih: ${app.date}\n` +
+                        `Saat: ${app.time}\n` +
+                        `Hizmet: ${app.service}\n\n` +
+                        `Randevunuzu iptal etmek istiyor musunuz?`
+                    );
+                    if (confirmCancel) {
+                        await deleteAppointment(app.id);
+                        initCalendar(elementId, currentUserCode);
+                    }
+                } else {
+                    alert("🔒 Bu randevu doludur.");
+                }
+            }
+        });
+        calendar.render();
+    }
+}
+
+async function deleteAppointment(id) {
+    try {
+        await deleteDoc(doc(db, "appointments", id));
+        alert("✅ Randevu başarıyla iptal edildi.");
+    } catch (e) {
+        console.error("Hata (deleteAppointment):", e);
+    }
+}
+
+window.handleBookingSubmit = async function(event) {
+    event.preventDefault();
+
+    const currentCode = localStorage.getItem("currentPortalUser") || "";
+    const name = document.getElementById("clientName").value.trim();
+    const email = document.getElementById("clientEmail").value.trim();
+    const phone = document.getElementById("clientPhone").value.trim();
+    const date = document.getElementById("selectedDate").value;
+    const time = document.getElementById("selectedTime").value;
+    const service = document.getElementById("serviceType").value;
+
+    const appointments = await getAppointments();
+    const isConflict = appointments.some(app => app.date === date && app.time === time && app.status === 'approved');
+
+    if (isConflict) {
+        alert("⚠️ Bu randevu doludur. Lütfen başka bir saat veya tarih seçiniz.");
+        return;
+    }
+
+    const newAppointment = {
+        clientCode: currentCode,
+        name,
+        email,
+        phone,
+        date,
+        time,
+        service,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+    };
+
+    try {
+        await addDoc(collection(db, "appointments"), newAppointment);
+
+        const mailSubject = encodeURIComponent(`Yeni Randevu Talebi: ${name}`);
+        const mailBody = encodeURIComponent(
+            `Merhaba Derya Hanım,\n\nYeni bir randevu talebi oluşturuldu:\n\n` +
+            `Danışan: ${name}\n` +
+            `E-Posta: ${email}\n` +
+            `Telefon: ${phone}\n` +
+            `Tarih: ${date}\n` +
+            `Saat: ${time}\n` +
+            `Hizmet: ${service}\n\n` +
+            `Talebi onaylamak için Yönetim Paneline giriş yapabilirsiniz.`
+        );
+
+        window.location.href = `mailto:goldensunderya@hotmail.com?subject=${mailSubject}&body=${mailBody}`;
+
+        alert("✅ Randevu talebiniz başarıyla alındı! Derya Hanım onayladıktan sonra randevunuz takvimde kesinleşecektir.");
+        document.getElementById("appointmentForm").reset();
+        
+        initCalendar('clientCalendar', currentCode);
+    } catch (e) {
+        console.error("Hata (handleBookingSubmit):", e);
+        alert("⚠️ Bir hata oluştu. Lütfen tekrar deneyiniz.");
+    }
+};
+
+/* ==========================================
+   4. PORTAL LOGIN SYSTEM
+   ========================================== */
+window.handlePortalLogin = async function(event) {
+    if (event) event.preventDefault();
+
+    const input = document.getElementById('accessCode');
+    const errorMsg = document.getElementById('loginError');
+    const loginSection = document.getElementById('loginSection');
+    const masterDashboard = document.getElementById('masterDashboard');
+    const clientDashboard = document.getElementById('clientDashboard');
+
+    if (!input) return;
+    const code = input.value.trim();
+
+    if (!code) {
+        if (errorMsg) {
+            errorMsg.innerText = "Lütfen bir kod giriniz.";
+            errorMsg.style.display = "block";
+        }
+        return;
+    }
+
+    localStorage.setItem("currentPortalUser", code.toLowerCase());
+
+    // Master-Login
+    if (code.toLowerCase() === 'master' || code.toUpperCase() === '28SENDK29') {
+        if (loginSection) loginSection.style.display = 'none';
+        if (masterDashboard) masterDashboard.style.display = 'block';
+        if (clientDashboard) clientDashboard.style.display = 'none';
+        if (errorMsg) errorMsg.style.display = 'none';
+        
+        loadMasterDashboard();
+        return;
+    }
+
+    // Klienten-Login über Firestore
+    try {
+        const docRef = doc(db, "clients", code.toUpperCase());
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+            if (loginSection) loginSection.style.display = 'none';
+            if (masterDashboard) masterDashboard.style.display = 'none';
+            if (clientDashboard) clientDashboard.style.display = 'block';
+            if (errorMsg) errorMsg.style.display = 'none';
+
+            loadClientDashboard(code.toUpperCase());
+        } else {
+            if (errorMsg) {
+                errorMsg.innerText = "❌ Geçersiz giriş kodu! Lütfen geçerli bir kod giriniz.";
+                errorMsg.style.display = 'block';
+            }
+        }
+    } catch (e) {
+        console.error("Hata (handlePortalLogin):", e);
+    }
+};
+
+/* ==========================================
+   5. MASTER DASHBOARD
+   ========================================== */
+function loadMasterDashboard() {
+    renderPendingAppointments();
+    initCalendar('masterCalendar', '28SENDK29');
+    populateClientSelect();
+    renderMasterComments();
+}
+
+async function renderPendingAppointments() {
+    const listEl = document.getElementById("pendingAppointmentsList");
+    if (!listEl) return;
+
+    const appointments = (await getAppointments()).filter(app => app.status === 'pending');
+
+    if (appointments.length === 0) {
+        listEl.innerHTML = "<p class='no-data'>Bekleyen randevu talebi bulunmuyor.</p>";
+        return;
+    }
+
+    listEl.innerHTML = appointments.map(app => `
+        <div class="pending-item" style="padding: 12px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+            <div class="pending-info">
+                <strong>${app.name}</strong> (${app.service})<br>
+                📅 ${app.date} - ⏰ ${app.time}<br>
+                📞 ${app.phone} | ✉️ ${app.email}
+            </div>
+            <div class="pending-actions">
+                <button onclick="approveAppointment('${app.id}')" class="btn-approve" style="background:#27ae60; color:#fff; border:none; padding: 6px 12px; border-radius:4px; cursor:pointer; margin-right: 5px;">Onayla</button>
+                <button onclick="rejectAppointment('${app.id}')" class="btn-reject" style="background:#c0392b; color:#fff; border:none; padding: 6px 12px; border-radius:4px; cursor:pointer;">Reddet</button>
+            </div>
+        </div>
+    `).join("");
+}
+
+window.approveAppointment = async function(id) {
+    try {
+        const appointments = await getAppointments();
+        const appToApprove = appointments.find(a => a.id === id);
+
+        if (!appToApprove) return;
+
+        const hasConflict = appointments.some(app => 
+            app.id !== id && 
+            app.date === appToApprove.date && 
+            app.time === appToApprove.time && 
+            app.status === 'approved'
+        );
+
+        if (hasConflict) {
+            alert(`⚠️ Dikkat! ${appToApprove.date} tarihinde ve saat ${appToApprove.time} için zaten onaylanmış başka bir randevu var.`);
+            return;
+        }
+
+        await updateDoc(doc(db, "appointments", id), { status: 'approved' });
+        renderPendingAppointments();
+        initCalendar('masterCalendar', '28SENDK29');
+        alert("✅ Randevu onaylandı.");
+    } catch (e) {
+        console.error("Hata (approveAppointment):", e);
+    }
+};
+
+window.rejectAppointment = async function(id) {
+    await deleteAppointment(id);
+    renderPendingAppointments();
+};
+
+window.addNewClient = async function(e) {
+    e.preventDefault();
+    const code = document.getElementById("newClientCode").value.trim().toUpperCase();
+    const name = document.getElementById("newClientName").value.trim();
+
+    if (!code || !name) return;
+
+    try {
+        await setDoc(doc(db, "clients", code), {
+            code,
+            name,
+            homework: "Henüz tanımlanmış ödeviniz bulunmuyor.",
+            homeworkDate: null,
+            payment: "0 €",
+            privateNotes: ""
+        });
+
+        alert(`✅ Yeni Danışan Eklendi! Kod: ${code}`);
+        document.getElementById("newClientCode").value = "";
+        document.getElementById("newClientName").value = "";
+        populateClientSelect();
+    } catch (e) {
+        console.error("Hata (addNewClient):", e);
+    }
+};
+
+window.deleteClientAccount = async function() {
+    const select = document.getElementById("clientSelect");
+    const code = select.value;
+
+    if (!code) return;
+
+    if (confirm(`⚠️ ${code} kodlu danışan hesabını silmek istediğinize emin misiniz?`)) {
+        try {
+            await deleteDoc(doc(db, "clients", code));
+            alert("✅ Danışan hesabı başarıyla silindi.");
+            populateClientSelect();
+        } catch (e) {
+            console.error("Hata (deleteClientAccount):", e);
+        }
+    }
+};
+
+async function populateClientSelect() {
+    const select = document.getElementById("clientSelect");
+    if (!select) return;
+
+    try {
+        const querySnapshot = await getDocs(collection(db, "clients"));
+        if (querySnapshot.empty) {
+            select.innerHTML = "<option value=''>Kayıtlı Danışan Yok</option>";
+            return;
+        }
+
+        select.innerHTML = querySnapshot.docs.map(docSnap => {
+            const data = docSnap.data();
+            return `<option value="${docSnap.id}">${data.name} (${docSnap.id})</option>`;
+        }).join("");
+
+        loadClientData();
+    } catch (e) {
+        console.error("Hata (populateClientSelect):", e);
+    }
+}
+
+window.loadClientData = async function() {
+    const select = document.getElementById("clientSelect");
+    const code = select?.value;
+    if (!code) return;
+
+    try {
+        const docSnap = await getDoc(doc(db, "clients", code));
+        if (docSnap.exists()) {
+            const client = docSnap.data();
+            const hw = document.getElementById("clientHomework");
+            const pay = document.getElementById("clientPayment");
+            const notes = document.getElementById("clientPrivateNotes");
+
+            if (hw) hw.value = client.homework || "";
+            if (pay) pay.value = client.payment || "";
+            if (notes) notes.value = client.privateNotes || "";
+        }
+    } catch (e) {
+        console.error("Hata (loadClientData):", e);
+    }
+};
+
+window.saveClientData = async function() {
+    const select = document.getElementById("clientSelect");
+    const code = select?.value;
+    if (!code) return;
+
+    const hw = document.getElementById("clientHomework");
+    const pay = document.getElementById("clientPayment");
+    const notes = document.getElementById("clientPrivateNotes");
+
+    try {
+        await updateDoc(doc(db, "clients", code), {
+            homework: hw ? hw.value : "",
+            homeworkDate: new Date().toISOString(),
+            payment: pay ? pay.value : "",
+            privateNotes: notes ? notes.value : ""
+        });
+        alert("✅ Danışan bilgileri güncellendi!");
+    } catch (e) {
+        console.error("Hata (saveClientData):", e);
+    }
+};
+
+/* ==========================================
+   6. CLIENT DASHBOARD LOGIK
+   ========================================== */
+async function loadClientDashboard(code) {
+    await cleanExpiredHomework();
+
+    const welcomeTitle = document.getElementById("clientWelcomeTitle");
+    const homeworkEl = document.getElementById("displayHomework");
+    const paymentEl = document.getElementById("displayPayment");
+    const nameInput = document.getElementById("clientName");
+
+    try {
+        const docSnap = await getDoc(doc(db, "clients", code));
+        if (docSnap.exists()) {
+            const client = docSnap.data();
+            if (welcomeTitle) welcomeTitle.innerText = `Hoş Geldiniz, ${client.name}`;
+            if (homeworkEl) homeworkEl.innerText = client.homework || "Henüz tanımlanmış ödeviniz bulunmuyor.";
+            if (paymentEl) paymentEl.innerText = client.payment || "0 €";
+            if (nameInput) nameInput.value = client.name;
+        } else {
+            if (welcomeTitle) welcomeTitle.innerText = `Hoş Geldiniz (${code})`;
+        }
+    } catch (e) {
+        console.error("Hata (loadClientDashboard):", e);
+    }
+
+    initCalendar('clientCalendar', code);
+}
+
+/* ==========================================
+   7. YORUM YÖNETİMİ
+   ========================================== */
+async function getComments() {
+    try {
+        const q = query(collection(db, "comments"), orderBy("createdAt", "desc"));
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+    } catch (e) {
+        console.error("Hata (getComments):", e);
+        return [];
+    }
+}
+
+async function renderComments() {
+    const grid = document.getElementById("comments-grid");
+    if (!grid) return;
+
+    const comments = await getComments();
+    grid.innerHTML = comments.map(c => `
+        <div class="comment-card">
+            <div class="comment-header">
+                <strong>${escapeHTML(c.name)}</strong>
+                <span class="stars">${"★".repeat(c.stars)}${"☆".repeat(5 - c.stars)}</span>
+            </div>
+            <p>${escapeHTML(c.text)}</p>
+        </div>
+    `).join("");
+}
+
+async function renderMasterComments() {
+    const list = document.getElementById("masterCommentsList");
+    if (!list) return;
+
+    const comments = await getComments();
+    list.innerHTML = comments.map(c => `
+        <div class="master-comment-item" style="padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <strong>${escapeHTML(c.name)}</strong> (${"★".repeat(c.stars)})<br>
+                <small>${escapeHTML(c.text)}</small>
+            </div>
+            <button onclick="deleteComment('${c.id}')" class="btn-delete-comment" style="background:#c0392b; color:#fff; border:none; padding:5px 10px; border-radius:3px; cursor:pointer;"><i class="fas fa-trash"></i> Yorumu Sil</button>
+        </div>
+    `).join("");
+}
+
+window.deleteComment = async function(id) {
+    if (confirm("Bu yorumu silmek istediğinize emin misiniz?")) {
+        try {
+            await deleteDoc(doc(db, "comments", id));
+            renderMasterComments();
+            renderComments();
+            alert("✅ Yorum silindi.");
+        } catch (e) {
+            console.error("Hata (deleteComment):", e);
+        }
+    }
+};
+
+window.addComment = async function(event) {
+    event.preventDefault();
+
+    const nameInput = document.getElementById("commentName");
+    const starsSelect = document.getElementById("commentStars");
+    const textInput = document.getElementById("commentText");
+
+    if (!nameInput || !starsSelect || !textInput) return;
+
+    const name = nameInput.value.trim();
+    const stars = parseInt(starsSelect.value, 10);
+    const text = textInput.value.trim();
+
+    if (!name || !text) {
+        alert("Lütfen adınızı ve yorumunuzu giriniz.");
+        return;
+    }
+
+    try {
+        await addDoc(collection(db, "comments"), {
+            name: name,
+            stars: stars,
+            text: text,
+            createdAt: new Date().toISOString()
+        });
+
+        renderComments();
+        nameInput.value = "";
+        textInput.value = "";
+        starsSelect.value = "5";
+
+        alert("✅ Yorumunuz başarıyla gönderildi ve kaydedildi!");
+    } catch (e) {
+        console.error("Hata (addComment):", e);
+        alert("⚠️ Yorum gönderilirken bir hata oluştu.");
+    }
+};
+
+/* ==========================================
+   8. INTELLIGENTER ASİSTAN CHAT
+   ========================================== */
+window.toggleAsistanChat = function() {
+    const modal = document.getElementById("asistanModal") || document.getElementById("assistantModal");
+    if (!modal) return;
+    modal.style.display = (modal.style.display === "none" || modal.style.display === "") ? "flex" : "none";
+};
+
+window.handleAssistantSubmit = function(event) {
+    event.preventDefault();
+    const input = document.getElementById("asistanMsgInput") || document.getElementById("assistantInput");
+    const chatBox = document.getElementById("asistanChatBody") || document.getElementById("assistantChatBox");
+    
+    if (!input || !chatBox) return;
+
+    const text = input.value.trim();
+    if (!text) return;
+
+    const userDiv = document.createElement("div");
+    userDiv.className = "msg user-msg message";
+    userDiv.style.cssText = "background: #8c6a56; color: white; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px; text-align: right; margin-left: 20px; font-size: 14px;";
+    userDiv.innerText = text;
+    chatBox.appendChild(userDiv);
+
+    input.value = "";
+    chatBox.scrollTop = chatBox.scrollHeight;
+
+    setTimeout(() => {
+        const botReply = generateAssistantReply(text);
+        
+        const botDiv = document.createElement("div");
+        botDiv.className = "msg bot-msg message";
+        botDiv.style.cssText = "background: #e8dfd8; color: #333; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px; font-size: 14px; line-height: 1.4;";
+        botDiv.innerText = botReply;
+        chatBox.appendChild(botDiv);
+
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }, 600);
+};
+
+window.sendAsistanMessage = function(event) {
+    window.handleAssistantSubmit(event);
+};
+
+function generateAssistantReply(query) {
+    const q = query.toLowerCase().trim();
+
+    if (q.includes("çıkama") || q.includes("cikama") || q.includes("kalır mıyım") || q.includes("kalir miyim")) {
+        return "Kesinlikle hayır. Hipnoz derin bir gevşeme halidir ve uyku değildir. İstediğiniz an gözlerinizi açıp hipnozdan çıkabilirsiniz. Hipnozda takılı kalmak gibi bir durum tıbben ve psikolojik olarak mümkün değildir.";
+    }
+    if (q.includes("bilinç") || q.includes("bilinc") || q.includes("kayıp") || q.includes("kayip") || q.includes("kontrol")) {
+        return "Hayır, ne Hipnozda ne de Deep EFT çalışmalarında bilincinizi veya kontrolünüzü kaybetmezsiniz. Tüm süreç boyunca ne konuştuğunuzun farkında olursunuz ve kontrol tamamen sizdedir.";
+    }
+    if (q.includes("sır") || q.includes("sir") || q.includes("istemediğim") || q.includes("istemedigim")) {
+        return "Hipnoz esnasında istemediğiniz hiçbir şeyi söylemezsiniz veya yapmazsınız. Zihniniz ve etik değerleriniz sizi her zaman korur.";
+    }
+    if (q.includes("zarar") || q.includes("yan etki") || q.includes("tehlikeli")) {
+        return "Hipnoz ve Deep EFT tamamen doğal ve güvenli yöntemlerdir. Hiçbir yan etkisi veya tehlikesi yoktur. Sadece derin bir zihinsel ve bedensel rahatlama sağlarsınız.";
+    }
+    if (q.includes("unuttum") || q.includes("kaybettim") || q.includes("şifre") || q.includes("sifre") || q.includes("hatırlamıyorum") || q.includes("hatirlamiyorum")) {
+        return "Giriş kodunuzu unuttuysanız endişelenmeyin! Bize WhatsApp veya Instagram DM üzerinden adınız ve soyadınızla ulaşırsanız, kodunuzu size hemen tekrar iletebiliriz.";
+    }
+    if (q.includes("hipnoz") || q.includes("hypnose")) {
+        return "Hipnoterapi seans ücreti 170 €'dur. Hipnoz, bilinçaltınızdaki olumsuz inançları ve blokajları dönüştürmek için kullanılan son derece etkili ve güvenli bir yöntemdir.";
+    }
+    if (q.includes("eft") || q.includes("deep eft")) {
+        return "Deep EFT seansları saatlik 65 €'dur. Bedenimizdeki enerji meridyenlerine hafif dokunuşlar yaparak geçmiş travmaları ve duygusal yükleri serbest bırakma yöntemidir.";
+    }
+    if (q.includes("ucret") || q.includes("fiyat") || q.includes("preis") || q.includes("kosten") || q.includes("ödeme") || q.includes("odeme") || q.includes("paypal")) {
+        return "Hipnoterapi seans ücreti 170 €'dur. Deep EFT ve diğer seanslar ise saatlik 65 €'dur. Ödemelerinizi Ödeme sayfamız üzerinden PayPal ile gerçekleştirebilirsiniz.";
+    }
+    if (q.includes("kod") || q.includes("giris") || q.includes("giriş") || q.includes("portal")) {
+        return "Danışan portalı giriş kodunuz seansınız onaylandıktan sonra size özel olarak iletilir. Kodunuzu unuttuysanız veya ilk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
+    }
+    if (q.includes("randevu") || q.includes("termin") || q.includes("seans")) {
+        return "Randevu almak için Danışan Portalı üzerinden uygun tarih ve saati seçebilirsiniz. İlk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
+    }
+    if (q.includes("merhaba") || q.includes("selam") || q.includes("hallo")) {
+        return "Merhaba! Derya Kılıç Sanal Asistanına hoş geldiniz. Terapi yöntemleri, randevu süreci veya aklınıza takılan sorular hakkında bana danışabilirsiniz. İlk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
+    }
+    if (q.includes("teşekkür") || q.includes("tesekkur") || q.includes("sağol") || q.includes("danke")) {
+        return "Rica ederim! Aklınıza takılan başka bir soru olursa her zaman buradayım.";
+    }
+
+    return "Size nasıl yardımcı olabilirim? Terapi seansları (Hipnoz/EFT), randevular, giriş kodları ve ücretlerimiz hakkında soru sorabilirsiniz. İlk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
+}
+
+function escapeHTML(str) {
+    if (!str) return "";
+    return str.replace(/[&<>'"]/g, 
+        tag => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            "'": '&#39;',
+            '"': '&quot;'
+        }[tag] || tag)
+    );
+}
+
+/* ==========================================
+   9. LOGOUT FUNKTION
+   ========================================== */
+window.logoutPortal = function() {
+    localStorage.removeItem("currentPortalUser");
+    localStorage.removeItem("portalAccessCode");
+    sessionStorage.removeItem("portalAccessCode");
+    localStorage.removeItem("currentUserRole");
+
+    const masterDash = document.getElementById("masterDashboard");
+    const clientDash = document.getElementById("clientDashboard");
+    const loginSec = document.getElementById("loginSection") || document.getElementById("portalLoginSection");
+
+    if (masterDash) masterDash.style.display = "none";
+    if (clientDash) clientDash.style.display = "none";
+    if (loginSec) loginSec.style.display = "block";
+
+    window.location.href = "index.html";
+};/* ==========================================
+   FIREBASE MODULAR IMPORTS & INITIALISIERUNG
+   ========================================== */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+import { 
+    getFirestore, 
+    collection, 
+    getDocs, 
+    doc, 
+    getDoc, 
+    setDoc, 
+    addDoc, 
+    updateDoc, 
+    deleteDoc, 
+    query, 
+    orderBy 
+} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyBYSifQ5m7G_sdyN0JAkkC8SV6x9gY0-Oo",
+    authDomain: "derya-kilic-website.firebaseapp.com",
+    projectId: "derya-kilic-website",
+    storageBucket: "derya-kilic-website.firebasestorage.app",
+    messagingSenderId: "493728541181",
+    appId: "1:493728541181:web:d361a4ca1c8dff5ed65194",
+    measurementId: "G-DE18012D63"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+/* ==========================================
+   1. INITIALISIERUNG & COOKIE BANNER
+   ========================================== */
+document.addEventListener("DOMContentLoaded", () => {
+    renderComments();
+    cleanExpiredHomework();
+    initCookieBanner();
+});
+
+function initCookieBanner() {
+    const cookieOverlay = document.getElementById("cookieModalOverlay");
+    const acceptBtn = document.getElementById("btnAcceptCookies");
+
+    if (localStorage.getItem("cookies_accepted") === "true") {
+        if (cookieOverlay) cookieOverlay.style.display = "none";
+        return;
+    }
+
+    if (cookieOverlay) {
+        cookieOverlay.style.display = "flex";
+    } else {
+        const banner = document.createElement("div");
+        banner.className = "cookie-overlay-box";
+        banner.id = "cookieBox";
+        banner.innerHTML = `
+            <div style="font-size:24px; margin-bottom:5px;">🍪</div>
+            <p style="margin:0; font-size:0.88rem; color:#444;">
+                Bu web sitesi deneyiminizi geliştirmek ve güvenli bir hizmet sunmak için çerezler kullanmaktadır.
+            </p>
+            <button id="btnAcceptInline" class="cookie-btn-accept">Kabul Et / Akzeptieren</button>
+        `;
+        document.body.appendChild(banner);
+        document.getElementById("btnAcceptInline")?.addEventListener("click", acceptCookiesNow);
+    }
+
+    if (acceptBtn) {
+        acceptBtn.addEventListener("click", acceptCookiesNow);
+    }
+}
+
+window.acceptCookiesNow = function() {
+    localStorage.setItem("cookies_accepted", "true");
+    const box = document.getElementById("cookieBox");
+    if (box) box.remove();
+    const cookieOverlay = document.getElementById("cookieModalOverlay");
+    if (cookieOverlay) cookieOverlay.style.display = "none";
+};
+
+/* ==========================================
+   2. DANIŞAN & ÖDEV TEMİZLİK LOGİĞİ
+   ========================================== */
+async function getAppointments() {
+    try {
+        const querySnapshot = await getDocs(collection(db, "appointments"));
+        return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+    } catch (e) {
+        console.error("Hata (getAppointments):", e);
+        return [];
+    }
+}
+
+async function cleanExpiredHomework() {
+    try {
+        const clientsSnap = await getDocs(collection(db, "clients"));
+        const appointments = await getAppointments();
+        const now = new Date();
+
+        for (const docSnap of clientsSnap.docs) {
+            const client = docSnap.data();
+            if (client.homeworkDate) {
+                const hwDate = new Date(client.homeworkDate);
+                const diffDays = (now - hwDate) / (1000 * 3600 * 24);
+                const hasPassedApp = appointments.some(app => 
+                    app.clientCode === client.code && 
+                    new Date(app.date) <= now && 
+                    app.status === 'approved'
+                );
+
+                if (diffDays >= 7 || hasPassedApp) {
+                    await updateDoc(doc(db, "clients", docSnap.id), {
+                        homework: "Henüz tanımlanmış ödeviniz bulunmuyor.",
+                        homeworkDate: null
+                    });
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Hata (cleanExpiredHomework):", e);
+    }
+}
+
+/* ==========================================
+   3. KALENDER SYSTEM & ANZEIGELOGIK
+   ========================================== */
+async function initCalendar(elementId, currentUserCode = null) {
+    const calendarEl = document.getElementById(elementId);
+    if (!calendarEl) return;
+
+    calendarEl.innerHTML = "";
+
+    const appointments = await getAppointments();
+    const isMaster = currentUserCode === '28SENDK29' || currentUserCode === 'master';
+
+    const events = appointments
+        .filter(app => app.status === 'approved')
+        .map(app => {
+            const isMine = app.clientCode && currentUserCode && app.clientCode.toLowerCase() === currentUserCode.toLowerCase();
+            let title = 'DOLU / Besetzt';
+            let color = '#c0392b';
+
+            if (isMaster) {
+                title = `${app.name} (${app.service})`;
+                color = '#8c725d';
+            } else if (isMine) {
+                title = `Randevunuz: ${app.service}`;
+                color = '#27ae60';
+            }
+
+            return {
+                id: app.id.toString(),
+                title: title,
+                start: `${app.date}T${app.time}`,
+                color: color,
+                extendedProps: app
+            };
+        });
+
+    if (typeof FullCalendar !== 'undefined') {
+        const calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            locale: 'tr',
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek'
+            },
+            events: events,
+            dateClick: function(info) {
+                const dateInput = document.getElementById('selectedDate');
+                if (dateInput) dateInput.value = info.dateStr;
+            },
+            eventClick: async function(info) {
+                const app = info.event.extendedProps;
+                const isMine = app.clientCode && currentUserCode && app.clientCode.toLowerCase() === currentUserCode.toLowerCase();
+
+                if (isMaster) {
+                    const confirmCancel = confirm(
+                        `📅 RANDEVU DETAYLARI:\n\n` +
+                        `Danışan: ${app.name}\n` +
+                        `Telefon: ${app.phone}\n` +
+                        `E-Posta: ${app.email}\n` +
+                        `Tarih: ${app.date} Saat: ${app.time}\n` +
+                        `Hizmet: ${app.service}\n\n` +
+                        `Bu randevuyu iptal etmek / silmek istiyor musunuz?`
+                    );
+                    if (confirmCancel) {
+                        await deleteAppointment(app.id);
+                        initCalendar(elementId, currentUserCode);
+                    }
+                } else if (isMine) {
+                    const confirmCancel = confirm(
+                        `🟢 SİZİN RANDEVUNUZ:\n\n` +
+                        `Tarih: ${app.date}\n` +
+                        `Saat: ${app.time}\n` +
+                        `Hizmet: ${app.service}\n\n` +
+                        `Randevunuzu iptal etmek istiyor musunuz?`
+                    );
+                    if (confirmCancel) {
+                        await deleteAppointment(app.id);
+                        initCalendar(elementId, currentUserCode);
+                    }
+                } else {
+                    alert("🔒 Bu randevu doludur.");
+                }
+            }
+        });
+        calendar.render();
+    }
+}
+
+async function deleteAppointment(id) {
+    try {
+        await deleteDoc(doc(db, "appointments", id));
+        alert("✅ Randevu başarıyla iptal edildi.");
+    } catch (e) {
+        console.error("Hata (deleteAppointment):", e);
+    }
+}
+
+window.handleBookingSubmit = async function(event) {
+    event.preventDefault();
+
+    const currentCode = localStorage.getItem("currentPortalUser") || "";
+    const name = document.getElementById("clientName").value.trim();
+    const email = document.getElementById("clientEmail").value.trim();
+    const phone = document.getElementById("clientPhone").value.trim();
+    const date = document.getElementById("selectedDate").value;
+    const time = document.getElementById("selectedTime").value;
+    const service = document.getElementById("serviceType").value;
+
+    const appointments = await getAppointments();
+    const isConflict = appointments.some(app => app.date === date && app.time === time && app.status === 'approved');
+
+    if (isConflict) {
+        alert("⚠️ Bu randevu doludur. Lütfen başka bir saat veya tarih seçiniz.");
+        return;
+    }
+
+    const newAppointment = {
+        clientCode: currentCode,
+        name,
+        email,
+        phone,
+        date,
+        time,
+        service,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+    };
+
+    try {
+        await addDoc(collection(db, "appointments"), newAppointment);
+
+        const mailSubject = encodeURIComponent(`Yeni Randevu Talebi: ${name}`);
+        const mailBody = encodeURIComponent(
+            `Merhaba Derya Hanım,\n\nYeni bir randevu talebi oluşturuldu:\n\n` +
+            `Danışan: ${name}\n` +
+            `E-Posta: ${email}\n` +
+            `Telefon: ${phone}\n` +
+            `Tarih: ${date}\n` +
+            `Saat: ${time}\n` +
+            `Hizmet: ${service}\n\n` +
+            `Talebi onaylamak için Yönetim Paneline giriş yapabilirsiniz.`
+        );
+
+        window.location.href = `mailto:goldensunderya@hotmail.com?subject=${mailSubject}&body=${mailBody}`;
+
+        alert("✅ Randevu talebiniz başarıyla alındı! Derya Hanım onayladıktan sonra randevunuz takvimde kesinleşecektir.");
+        document.getElementById("appointmentForm").reset();
+        
+        initCalendar('clientCalendar', currentCode);
+    } catch (e) {
+        console.error("Hata (handleBookingSubmit):", e);
+        alert("⚠️ Bir hata oluştu. Lütfen tekrar deneyiniz.");
+    }
+};
+
+/* ==========================================
+   4. PORTAL LOGIN SYSTEM
+   ========================================== */
+window.handlePortalLogin = async function(event) {
+    if (event) event.preventDefault();
+
+    const input = document.getElementById('accessCode');
+    const errorMsg = document.getElementById('loginError');
+    const loginSection = document.getElementById('loginSection');
+    const masterDashboard = document.getElementById('masterDashboard');
+    const clientDashboard = document.getElementById('clientDashboard');
+
+    if (!input) return;
+    const code = input.value.trim();
+
+    if (!code) {
+        if (errorMsg) {
+            errorMsg.innerText = "Lütfen bir kod giriniz.";
+            errorMsg.style.display = "block";
+        }
+        return;
+    }
+
+    localStorage.setItem("currentPortalUser", code.toLowerCase());
+
+    // Master-Login
+    if (code.toLowerCase() === 'master' || code.toUpperCase() === '28SENDK29') {
+        if (loginSection) loginSection.style.display = 'none';
+        if (masterDashboard) masterDashboard.style.display = 'block';
+        if (clientDashboard) clientDashboard.style.display = 'none';
+        if (errorMsg) errorMsg.style.display = 'none';
+        
+        loadMasterDashboard();
+        return;
+    }
+
+    // Klienten-Login über Firestore
+    try {
+        const docRef = doc(db, "clients", code.toUpperCase());
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+            if (loginSection) loginSection.style.display = 'none';
+            if (masterDashboard) masterDashboard.style.display = 'none';
+            if (clientDashboard) clientDashboard.style.display = 'block';
+            if (errorMsg) errorMsg.style.display = 'none';
+
+            loadClientDashboard(code.toUpperCase());
+        } else {
+            if (errorMsg) {
+                errorMsg.innerText = "❌ Geçersiz giriş kodu! Lütfen geçerli bir kod giriniz.";
+                errorMsg.style.display = 'block';
+            }
+        }
+    } catch (e) {
+        console.error("Hata (handlePortalLogin):", e);
+    }
+};
+
+/* ==========================================
+   5. MASTER DASHBOARD
+   ========================================== */
+function loadMasterDashboard() {
+    renderPendingAppointments();
+    initCalendar('masterCalendar', '28SENDK29');
+    populateClientSelect();
+    renderMasterComments();
+}
+
+async function renderPendingAppointments() {
+    const listEl = document.getElementById("pendingAppointmentsList");
+    if (!listEl) return;
+
+    const appointments = (await getAppointments()).filter(app => app.status === 'pending');
+
+    if (appointments.length === 0) {
+        listEl.innerHTML = "<p class='no-data'>Bekleyen randevu talebi bulunmuyor.</p>";
+        return;
+    }
+
+    listEl.innerHTML = appointments.map(app => `
+        <div class="pending-item" style="padding: 12px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+            <div class="pending-info">
+                <strong>${app.name}</strong> (${app.service})<br>
+                📅 ${app.date} - ⏰ ${app.time}<br>
+                📞 ${app.phone} | ✉️ ${app.email}
+            </div>
+            <div class="pending-actions">
+                <button onclick="approveAppointment('${app.id}')" class="btn-approve" style="background:#27ae60; color:#fff; border:none; padding: 6px 12px; border-radius:4px; cursor:pointer; margin-right: 5px;">Onayla</button>
+                <button onclick="rejectAppointment('${app.id}')" class="btn-reject" style="background:#c0392b; color:#fff; border:none; padding: 6px 12px; border-radius:4px; cursor:pointer;">Reddet</button>
+            </div>
+        </div>
+    `).join("");
+}
+
+window.approveAppointment = async function(id) {
+    try {
+        const appointments = await getAppointments();
+        const appToApprove = appointments.find(a => a.id === id);
+
+        if (!appToApprove) return;
+
+        const hasConflict = appointments.some(app => 
+            app.id !== id && 
+            app.date === appToApprove.date && 
+            app.time === appToApprove.time && 
+            app.status === 'approved'
+        );
+
+        if (hasConflict) {
+            alert(`⚠️ Dikkat! ${appToApprove.date} tarihinde ve saat ${appToApprove.time} için zaten onaylanmış başka bir randevu var.`);
+            return;
+        }
+
+        await updateDoc(doc(db, "appointments", id), { status: 'approved' });
+        renderPendingAppointments();
+        initCalendar('masterCalendar', '28SENDK29');
+        alert("✅ Randevu onaylandı.");
+    } catch (e) {
+        console.error("Hata (approveAppointment):", e);
+    }
+};
+
+window.rejectAppointment = async function(id) {
+    await deleteAppointment(id);
+    renderPendingAppointments();
+};
+
+window.addNewClient = async function(e) {
+    e.preventDefault();
+    const code = document.getElementById("newClientCode").value.trim().toUpperCase();
+    const name = document.getElementById("newClientName").value.trim();
+
+    if (!code || !name) return;
+
+    try {
+        await setDoc(doc(db, "clients", code), {
+            code,
+            name,
+            homework: "Henüz tanımlanmış ödeviniz bulunmuyor.",
+            homeworkDate: null,
+            payment: "0 €",
+            privateNotes: ""
+        });
+
+        alert(`✅ Yeni Danışan Eklendi! Kod: ${code}`);
+        document.getElementById("newClientCode").value = "";
+        document.getElementById("newClientName").value = "";
+        populateClientSelect();
+    } catch (e) {
+        console.error("Hata (addNewClient):", e);
+    }
+};
+
+window.deleteClientAccount = async function() {
+    const select = document.getElementById("clientSelect");
+    const code = select.value;
+
+    if (!code) return;
+
+    if (confirm(`⚠️ ${code} kodlu danışan hesabını silmek istediğinize emin misiniz?`)) {
+        try {
+            await deleteDoc(doc(db, "clients", code));
+            alert("✅ Danışan hesabı başarıyla silindi.");
+            populateClientSelect();
+        } catch (e) {
+            console.error("Hata (deleteClientAccount):", e);
+        }
+    }
+};
+
+async function populateClientSelect() {
+    const select = document.getElementById("clientSelect");
+    if (!select) return;
+
+    try {
+        const querySnapshot = await getDocs(collection(db, "clients"));
+        if (querySnapshot.empty) {
+            select.innerHTML = "<option value=''>Kayıtlı Danışan Yok</option>";
+            return;
+        }
+
+        select.innerHTML = querySnapshot.docs.map(docSnap => {
+            const data = docSnap.data();
+            return `<option value="${docSnap.id}">${data.name} (${docSnap.id})</option>`;
+        }).join("");
+
+        loadClientData();
+    } catch (e) {
+        console.error("Hata (populateClientSelect):", e);
+    }
+}
+
+window.loadClientData = async function() {
+    const select = document.getElementById("clientSelect");
+    const code = select?.value;
+    if (!code) return;
+
+    try {
+        const docSnap = await getDoc(doc(db, "clients", code));
+        if (docSnap.exists()) {
+            const client = docSnap.data();
+            const hw = document.getElementById("clientHomework");
+            const pay = document.getElementById("clientPayment");
+            const notes = document.getElementById("clientPrivateNotes");
+
+            if (hw) hw.value = client.homework || "";
+            if (pay) pay.value = client.payment || "";
+            if (notes) notes.value = client.privateNotes || "";
+        }
+    } catch (e) {
+        console.error("Hata (loadClientData):", e);
+    }
+};
+
+window.saveClientData = async function() {
+    const select = document.getElementById("clientSelect");
+    const code = select?.value;
+    if (!code) return;
+
+    const hw = document.getElementById("clientHomework");
+    const pay = document.getElementById("clientPayment");
+    const notes = document.getElementById("clientPrivateNotes");
+
+    try {
+        await updateDoc(doc(db, "clients", code), {
+            homework: hw ? hw.value : "",
+            homeworkDate: new Date().toISOString(),
+            payment: pay ? pay.value : "",
+            privateNotes: notes ? notes.value : ""
+        });
+        alert("✅ Danışan bilgileri güncellendi!");
+    } catch (e) {
+        console.error("Hata (saveClientData):", e);
+    }
+};
+
+/* ==========================================
+   6. CLIENT DASHBOARD LOGIK
+   ========================================== */
+async function loadClientDashboard(code) {
+    await cleanExpiredHomework();
+
+    const welcomeTitle = document.getElementById("clientWelcomeTitle");
+    const homeworkEl = document.getElementById("displayHomework");
+    const paymentEl = document.getElementById("displayPayment");
+    const nameInput = document.getElementById("clientName");
+
+    try {
+        const docSnap = await getDoc(doc(db, "clients", code));
+        if (docSnap.exists()) {
+            const client = docSnap.data();
+            if (welcomeTitle) welcomeTitle.innerText = `Hoş Geldiniz, ${client.name}`;
+            if (homeworkEl) homeworkEl.innerText = client.homework || "Henüz tanımlanmış ödeviniz bulunmuyor.";
+            if (paymentEl) paymentEl.innerText = client.payment || "0 €";
+            if (nameInput) nameInput.value = client.name;
+        } else {
+            if (welcomeTitle) welcomeTitle.innerText = `Hoş Geldiniz (${code})`;
+        }
+    } catch (e) {
+        console.error("Hata (loadClientDashboard):", e);
+    }
+
+    initCalendar('clientCalendar', code);
+}
+
+/* ==========================================
+   7. YORUM YÖNETİMİ
+   ========================================== */
+async function getComments() {
+    try {
+        const q = query(collection(db, "comments"), orderBy("createdAt", "desc"));
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+    } catch (e) {
+        console.error("Hata (getComments):", e);
+        return [];
+    }
+}
+
+async function renderComments() {
+    const grid = document.getElementById("comments-grid");
+    if (!grid) return;
+
+    const comments = await getComments();
+    grid.innerHTML = comments.map(c => `
+        <div class="comment-card">
+            <div class="comment-header">
+                <strong>${escapeHTML(c.name)}</strong>
+                <span class="stars">${"★".repeat(c.stars)}${"☆".repeat(5 - c.stars)}</span>
+            </div>
+            <p>${escapeHTML(c.text)}</p>
+        </div>
+    `).join("");
+}
+
+async function renderMasterComments() {
+    const list = document.getElementById("masterCommentsList");
+    if (!list) return;
+
+    const comments = await getComments();
+    list.innerHTML = comments.map(c => `
+        <div class="master-comment-item" style="padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <strong>${escapeHTML(c.name)}</strong> (${"★".repeat(c.stars)})<br>
+                <small>${escapeHTML(c.text)}</small>
+            </div>
+            <button onclick="deleteComment('${c.id}')" class="btn-delete-comment" style="background:#c0392b; color:#fff; border:none; padding:5px 10px; border-radius:3px; cursor:pointer;"><i class="fas fa-trash"></i> Yorumu Sil</button>
+        </div>
+    `).join("");
+}
+
+window.deleteComment = async function(id) {
+    if (confirm("Bu yorumu silmek istediğinize emin misiniz?")) {
+        try {
+            await deleteDoc(doc(db, "comments", id));
+            renderMasterComments();
+            renderComments();
+            alert("✅ Yorum silindi.");
+        } catch (e) {
+            console.error("Hata (deleteComment):", e);
+        }
+    }
+};
+
+window.addComment = async function(event) {
+    event.preventDefault();
+
+    const nameInput = document.getElementById("commentName");
+    const starsSelect = document.getElementById("commentStars");
+    const textInput = document.getElementById("commentText");
+
+    if (!nameInput || !starsSelect || !textInput) return;
+
+    const name = nameInput.value.trim();
+    const stars = parseInt(starsSelect.value, 10);
+    const text = textInput.value.trim();
+
+    if (!name || !text) {
+        alert("Lütfen adınızı ve yorumunuzu giriniz.");
+        return;
+    }
+
+    try {
+        await addDoc(collection(db, "comments"), {
+            name: name,
+            stars: stars,
+            text: text,
+            createdAt: new Date().toISOString()
+        });
+
+        renderComments();
+        nameInput.value = "";
+        textInput.value = "";
+        starsSelect.value = "5";
+
+        alert("✅ Yorumunuz başarıyla gönderildi ve kaydedildi!");
+    } catch (e) {
+        console.error("Hata (addComment):", e);
+        alert("⚠️ Yorum gönderilirken bir hata oluştu.");
+    }
+};
+
+/* ==========================================
+   8. INTELLIGENTER ASİSTAN CHAT
+   ========================================== */
+window.toggleAsistanChat = function() {
+    const modal = document.getElementById("asistanModal") || document.getElementById("assistantModal");
+    if (!modal) return;
+    modal.style.display = (modal.style.display === "none" || modal.style.display === "") ? "flex" : "none";
+};
+
+window.handleAssistantSubmit = function(event) {
+    event.preventDefault();
+    const input = document.getElementById("asistanMsgInput") || document.getElementById("assistantInput");
+    const chatBox = document.getElementById("asistanChatBody") || document.getElementById("assistantChatBox");
+    
+    if (!input || !chatBox) return;
+
+    const text = input.value.trim();
+    if (!text) return;
+
+    const userDiv = document.createElement("div");
+    userDiv.className = "msg user-msg message";
+    userDiv.style.cssText = "background: #8c6a56; color: white; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px; text-align: right; margin-left: 20px; font-size: 14px;";
+    userDiv.innerText = text;
+    chatBox.appendChild(userDiv);
+
+    input.value = "";
+    chatBox.scrollTop = chatBox.scrollHeight;
+
+    setTimeout(() => {
+        const botReply = generateAssistantReply(text);
+        
+        const botDiv = document.createElement("div");
+        botDiv.className = "msg bot-msg message";
+        botDiv.style.cssText = "background: #e8dfd8; color: #333; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px; font-size: 14px; line-height: 1.4;";
+        botDiv.innerText = botReply;
+        chatBox.appendChild(botDiv);
+
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }, 600);
+};
+
+window.sendAsistanMessage = function(event) {
+    window.handleAssistantSubmit(event);
+};
+
+function generateAssistantReply(query) {
+    const q = query.toLowerCase().trim();
+
+    if (q.includes("çıkama") || q.includes("cikama") || q.includes("kalır mıyım") || q.includes("kalir miyim")) {
+        return "Kesinlikle hayır. Hipnoz derin bir gevşeme halidir ve uyku değildir. İstediğiniz an gözlerinizi açıp hipnozdan çıkabilirsiniz. Hipnozda takılı kalmak gibi bir durum tıbben ve psikolojik olarak mümkün değildir.";
+    }
+    if (q.includes("bilinç") || q.includes("bilinc") || q.includes("kayıp") || q.includes("kayip") || q.includes("kontrol")) {
+        return "Hayır, ne Hipnozda ne de Deep EFT çalışmalarında bilincinizi veya kontrolünüzü kaybetmezsiniz. Tüm süreç boyunca ne konuştuğunuzun farkında olursunuz ve kontrol tamamen sizdedir.";
+    }
+    if (q.includes("sır") || q.includes("sir") || q.includes("istemediğim") || q.includes("istemedigim")) {
+        return "Hipnoz esnasında istemediğiniz hiçbir şeyi söylemezsiniz veya yapmazsınız. Zihniniz ve etik değerleriniz sizi her zaman korur.";
+    }
+    if (q.includes("zarar") || q.includes("yan etki") || q.includes("tehlikeli")) {
+        return "Hipnoz ve Deep EFT tamamen doğal ve güvenli yöntemlerdir. Hiçbir yan etkisi veya tehlikesi yoktur. Sadece derin bir zihinsel ve bedensel rahatlama sağlarsınız.";
+    }
+    if (q.includes("unuttum") || q.includes("kaybettim") || q.includes("şifre") || q.includes("sifre") || q.includes("hatırlamıyorum") || q.includes("hatirlamiyorum")) {
+        return "Giriş kodunuzu unuttuysanız endişelenmeyin! Bize WhatsApp veya Instagram DM üzerinden adınız ve soyadınızla ulaşırsanız, kodunuzu size hemen tekrar iletebiliriz.";
+    }
+    if (q.includes("hipnoz") || q.includes("hypnose")) {
+        return "Hipnoterapi seans ücreti 170 €'dur. Hipnoz, bilinçaltınızdaki olumsuz inançları ve blokajları dönüştürmek için kullanılan son derece etkili ve güvenli bir yöntemdir.";
+    }
+    if (q.includes("eft") || q.includes("deep eft")) {
+        return "Deep EFT seansları saatlik 65 €'dur. Bedenimizdeki enerji meridyenlerine hafif dokunuşlar yaparak geçmiş travmaları ve duygusal yükleri serbest bırakma yöntemidir.";
+    }
+    if (q.includes("ucret") || q.includes("fiyat") || q.includes("preis") || q.includes("kosten") || q.includes("ödeme") || q.includes("odeme") || q.includes("paypal")) {
+        return "Hipnoterapi seans ücreti 170 €'dur. Deep EFT ve diğer seanslar ise saatlik 65 €'dur. Ödemelerinizi Ödeme sayfamız üzerinden PayPal ile gerçekleştirebilirsiniz.";
+    }
+    if (q.includes("kod") || q.includes("giris") || q.includes("giriş") || q.includes("portal")) {
+        return "Danışan portalı giriş kodunuz seansınız onaylandıktan sonra size özel olarak iletilir. Kodunuzu unuttuysanız veya ilk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
+    }
+    if (q.includes("randevu") || q.includes("termin") || q.includes("seans")) {
+        return "Randevu almak için Danışan Portalı üzerinden uygun tarih ve saati seçebilirsiniz. İlk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
+    }
+    if (q.includes("merhaba") || q.includes("selam") || q.includes("hallo")) {
+        return "Merhaba! Derya Kılıç Sanal Asistanına hoş geldiniz. Terapi yöntemleri, randevu süreci veya aklınıza takılan sorular hakkında bana danışabilirsiniz. İlk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
+    }
+    if (q.includes("teşekkür") || q.includes("tesekkur") || q.includes("sağol") || q.includes("danke")) {
+        return "Rica ederim! Aklınıza takılan başka bir soru olursa her zaman buradayım.";
+    }
+
+    return "Size nasıl yardımcı olabilirim? Terapi seansları (Hipnoz/EFT), randevular, giriş kodları ve ücretlerimiz hakkında soru sorabilirsiniz. İlk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
+}
+
+function escapeHTML(str) {
+    if (!str) return "";
+    return str.replace(/[&<>'"]/g, 
+        tag => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            "'": '&#39;',
+            '"': '&quot;'
+        }[tag] || tag)
+    );
+}
+
+/* ==========================================
+   9. LOGOUT FUNKTION
+   ========================================== */
+window.logoutPortal = function() {
+    localStorage.removeItem("currentPortalUser");
+    localStorage.removeItem("portalAccessCode");
+    sessionStorage.removeItem("portalAccessCode");
+    localStorage.removeItem("currentUserRole");
+
+    const masterDash = document.getElementById("masterDashboard");
+    const clientDash = document.getElementById("clientDashboard");
+    const loginSec = document.getElementById("loginSection") || document.getElementById("portalLoginSection");
+
+    if (masterDash) masterDash.style.display = "none";
+    if (clientDash) clientDash.style.display = "none";
+    if (loginSec) loginSec.style.display = "block";
+
+    window.location.href = "index.html";
+};/* ==========================================
+   FIREBASE MODULAR IMPORTS & INITIALISIERUNG
+   ========================================== */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+import { 
+    getFirestore, 
+    collection, 
+    getDocs, 
+    doc, 
+    getDoc, 
+    setDoc, 
+    addDoc, 
+    updateDoc, 
+    deleteDoc, 
+    query, 
+    orderBy 
+} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyBYSifQ5m7G_sdyN0JAkkC8SV6x9gY0-Oo",
+    authDomain: "derya-kilic-website.firebaseapp.com",
+    projectId: "derya-kilic-website",
+    storageBucket: "derya-kilic-website.firebasestorage.app",
+    messagingSenderId: "493728541181",
+    appId: "1:493728541181:web:d361a4ca1c8dff5ed65194",
+    measurementId: "G-DE18012D63"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+/* ==========================================
+   1. INITIALISIERUNG & COOKIE BANNER
+   ========================================== */
+document.addEventListener("DOMContentLoaded", () => {
+    renderComments();
+    cleanExpiredHomework();
+    initCookieBanner();
+});
+
+function initCookieBanner() {
+    const cookieOverlay = document.getElementById("cookieModalOverlay");
+    const acceptBtn = document.getElementById("btnAcceptCookies");
+
+    if (localStorage.getItem("cookies_accepted") === "true") {
+        if (cookieOverlay) cookieOverlay.style.display = "none";
+        return;
+    }
+
+    if (cookieOverlay) {
+        cookieOverlay.style.display = "flex";
+    } else {
+        const banner = document.createElement("div");
+        banner.className = "cookie-overlay-box";
+        banner.id = "cookieBox";
+        banner.innerHTML = `
+            <div style="font-size:24px; margin-bottom:5px;">🍪</div>
+            <p style="margin:0; font-size:0.88rem; color:#444;">
+                Bu web sitesi deneyiminizi geliştirmek ve güvenli bir hizmet sunmak için çerezler kullanmaktadır.
+            </p>
+            <button id="btnAcceptInline" class="cookie-btn-accept">Kabul Et / Akzeptieren</button>
+        `;
+        document.body.appendChild(banner);
+        document.getElementById("btnAcceptInline")?.addEventListener("click", acceptCookiesNow);
+    }
+
+    if (acceptBtn) {
+        acceptBtn.addEventListener("click", acceptCookiesNow);
+    }
+}
+
+window.acceptCookiesNow = function() {
+    localStorage.setItem("cookies_accepted", "true");
+    const box = document.getElementById("cookieBox");
+    if (box) box.remove();
+    const cookieOverlay = document.getElementById("cookieModalOverlay");
+    if (cookieOverlay) cookieOverlay.style.display = "none";
+};
+
+/* ==========================================
+   2. DANIŞAN & ÖDEV TEMİZLİK LOGİĞİ
+   ========================================== */
+async function getAppointments() {
+    try {
+        const querySnapshot = await getDocs(collection(db, "appointments"));
+        return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+    } catch (e) {
+        console.error("Hata (getAppointments):", e);
+        return [];
+    }
+}
+
+async function cleanExpiredHomework() {
+    try {
+        const clientsSnap = await getDocs(collection(db, "clients"));
+        const appointments = await getAppointments();
+        const now = new Date();
+
+        for (const docSnap of clientsSnap.docs) {
+            const client = docSnap.data();
+            if (client.homeworkDate) {
+                const hwDate = new Date(client.homeworkDate);
+                const diffDays = (now - hwDate) / (1000 * 3600 * 24);
+                const hasPassedApp = appointments.some(app => 
+                    app.clientCode === client.code && 
+                    new Date(app.date) <= now && 
+                    app.status === 'approved'
+                );
+
+                if (diffDays >= 7 || hasPassedApp) {
+                    await updateDoc(doc(db, "clients", docSnap.id), {
+                        homework: "Henüz tanımlanmış ödeviniz bulunmuyor.",
+                        homeworkDate: null
+                    });
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Hata (cleanExpiredHomework):", e);
+    }
+}
+
+/* ==========================================
+   3. KALENDER SYSTEM & ANZEIGELOGIK
+   ========================================== */
+async function initCalendar(elementId, currentUserCode = null) {
+    const calendarEl = document.getElementById(elementId);
+    if (!calendarEl) return;
+
+    calendarEl.innerHTML = "";
+
+    const appointments = await getAppointments();
+    const isMaster = currentUserCode === '28SENDK29' || currentUserCode === 'master';
+
+    const events = appointments
+        .filter(app => app.status === 'approved')
+        .map(app => {
+            const isMine = app.clientCode && currentUserCode && app.clientCode.toLowerCase() === currentUserCode.toLowerCase();
+            let title = 'DOLU / Besetzt';
+            let color = '#c0392b';
+
+            if (isMaster) {
+                title = `${app.name} (${app.service})`;
+                color = '#8c725d';
+            } else if (isMine) {
+                title = `Randevunuz: ${app.service}`;
+                color = '#27ae60';
+            }
+
+            return {
+                id: app.id.toString(),
+                title: title,
+                start: `${app.date}T${app.time}`,
+                color: color,
+                extendedProps: app
+            };
+        });
+
+    if (typeof FullCalendar !== 'undefined') {
+        const calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            locale: 'tr',
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek'
+            },
+            events: events,
+            dateClick: function(info) {
+                const dateInput = document.getElementById('selectedDate');
+                if (dateInput) dateInput.value = info.dateStr;
+            },
+            eventClick: async function(info) {
+                const app = info.event.extendedProps;
+                const isMine = app.clientCode && currentUserCode && app.clientCode.toLowerCase() === currentUserCode.toLowerCase();
+
+                if (isMaster) {
+                    const confirmCancel = confirm(
+                        `📅 RANDEVU DETAYLARI:\n\n` +
+                        `Danışan: ${app.name}\n` +
+                        `Telefon: ${app.phone}\n` +
+                        `E-Posta: ${app.email}\n` +
+                        `Tarih: ${app.date} Saat: ${app.time}\n` +
+                        `Hizmet: ${app.service}\n\n` +
+                        `Bu randevuyu iptal etmek / silmek istiyor musunuz?`
+                    );
+                    if (confirmCancel) {
+                        await deleteAppointment(app.id);
+                        initCalendar(elementId, currentUserCode);
+                    }
+                } else if (isMine) {
+                    const confirmCancel = confirm(
+                        `🟢 SİZİN RANDEVUNUZ:\n\n` +
+                        `Tarih: ${app.date}\n` +
+                        `Saat: ${app.time}\n` +
+                        `Hizmet: ${app.service}\n\n` +
+                        `Randevunuzu iptal etmek istiyor musunuz?`
+                    );
+                    if (confirmCancel) {
+                        await deleteAppointment(app.id);
+                        initCalendar(elementId, currentUserCode);
+                    }
+                } else {
+                    alert("🔒 Bu randevu doludur.");
+                }
+            }
+        });
+        calendar.render();
+    }
+}
+
+async function deleteAppointment(id) {
+    try {
+        await deleteDoc(doc(db, "appointments", id));
+        alert("✅ Randevu başarıyla iptal edildi.");
+    } catch (e) {
+        console.error("Hata (deleteAppointment):", e);
+    }
+}
+
+window.handleBookingSubmit = async function(event) {
+    event.preventDefault();
+
+    const currentCode = localStorage.getItem("currentPortalUser") || "";
+    const name = document.getElementById("clientName").value.trim();
+    const email = document.getElementById("clientEmail").value.trim();
+    const phone = document.getElementById("clientPhone").value.trim();
+    const date = document.getElementById("selectedDate").value;
+    const time = document.getElementById("selectedTime").value;
+    const service = document.getElementById("serviceType").value;
+
+    const appointments = await getAppointments();
+    const isConflict = appointments.some(app => app.date === date && app.time === time && app.status === 'approved');
+
+    if (isConflict) {
+        alert("⚠️ Bu randevu doludur. Lütfen başka bir saat veya tarih seçiniz.");
+        return;
+    }
+
+    const newAppointment = {
+        clientCode: currentCode,
+        name,
+        email,
+        phone,
+        date,
+        time,
+        service,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+    };
+
+    try {
+        await addDoc(collection(db, "appointments"), newAppointment);
+
+        const mailSubject = encodeURIComponent(`Yeni Randevu Talebi: ${name}`);
+        const mailBody = encodeURIComponent(
+            `Merhaba Derya Hanım,\n\nYeni bir randevu talebi oluşturuldu:\n\n` +
+            `Danışan: ${name}\n` +
+            `E-Posta: ${email}\n` +
+            `Telefon: ${phone}\n` +
+            `Tarih: ${date}\n` +
+            `Saat: ${time}\n` +
+            `Hizmet: ${service}\n\n` +
+            `Talebi onaylamak için Yönetim Paneline giriş yapabilirsiniz.`
+        );
+
+        window.location.href = `mailto:goldensunderya@hotmail.com?subject=${mailSubject}&body=${mailBody}`;
+
+        alert("✅ Randevu talebiniz başarıyla alındı! Derya Hanım onayladıktan sonra randevunuz takvimde kesinleşecektir.");
+        document.getElementById("appointmentForm").reset();
+        
+        initCalendar('clientCalendar', currentCode);
+    } catch (e) {
+        console.error("Hata (handleBookingSubmit):", e);
+        alert("⚠️ Bir hata oluştu. Lütfen tekrar deneyiniz.");
+    }
+};
+
+/* ==========================================
+   4. PORTAL LOGIN SYSTEM
+   ========================================== */
+window.handlePortalLogin = async function(event) {
+    if (event) event.preventDefault();
+
+    const input = document.getElementById('accessCode');
+    const errorMsg = document.getElementById('loginError');
+    const loginSection = document.getElementById('loginSection');
+    const masterDashboard = document.getElementById('masterDashboard');
+    const clientDashboard = document.getElementById('clientDashboard');
+
+    if (!input) return;
+    const code = input.value.trim();
+
+    if (!code) {
+        if (errorMsg) {
+            errorMsg.innerText = "Lütfen bir kod giriniz.";
+            errorMsg.style.display = "block";
+        }
+        return;
+    }
+
+    localStorage.setItem("currentPortalUser", code.toLowerCase());
+
+    // Master-Login
+    if (code.toLowerCase() === 'master' || code.toUpperCase() === '28SENDK29') {
+        if (loginSection) loginSection.style.display = 'none';
+        if (masterDashboard) masterDashboard.style.display = 'block';
+        if (clientDashboard) clientDashboard.style.display = 'none';
+        if (errorMsg) errorMsg.style.display = 'none';
+        
+        loadMasterDashboard();
+        return;
+    }
+
+    // Klienten-Login über Firestore
+    try {
+        const docRef = doc(db, "clients", code.toUpperCase());
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+            if (loginSection) loginSection.style.display = 'none';
+            if (masterDashboard) masterDashboard.style.display = 'none';
+            if (clientDashboard) clientDashboard.style.display = 'block';
+            if (errorMsg) errorMsg.style.display = 'none';
+
+            loadClientDashboard(code.toUpperCase());
+        } else {
+            if (errorMsg) {
+                errorMsg.innerText = "❌ Geçersiz giriş kodu! Lütfen geçerli bir kod giriniz.";
+                errorMsg.style.display = 'block';
+            }
+        }
+    } catch (e) {
+        console.error("Hata (handlePortalLogin):", e);
+    }
+};
+
+/* ==========================================
+   5. MASTER DASHBOARD
+   ========================================== */
+function loadMasterDashboard() {
+    renderPendingAppointments();
+    initCalendar('masterCalendar', '28SENDK29');
+    populateClientSelect();
+    renderMasterComments();
+}
+
+async function renderPendingAppointments() {
+    const listEl = document.getElementById("pendingAppointmentsList");
+    if (!listEl) return;
+
+    const appointments = (await getAppointments()).filter(app => app.status === 'pending');
+
+    if (appointments.length === 0) {
+        listEl.innerHTML = "<p class='no-data'>Bekleyen randevu talebi bulunmuyor.</p>";
+        return;
+    }
+
+    listEl.innerHTML = appointments.map(app => `
+        <div class="pending-item" style="padding: 12px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+            <div class="pending-info">
+                <strong>${app.name}</strong> (${app.service})<br>
+                📅 ${app.date} - ⏰ ${app.time}<br>
+                📞 ${app.phone} | ✉️ ${app.email}
+            </div>
+            <div class="pending-actions">
+                <button onclick="approveAppointment('${app.id}')" class="btn-approve" style="background:#27ae60; color:#fff; border:none; padding: 6px 12px; border-radius:4px; cursor:pointer; margin-right: 5px;">Onayla</button>
+                <button onclick="rejectAppointment('${app.id}')" class="btn-reject" style="background:#c0392b; color:#fff; border:none; padding: 6px 12px; border-radius:4px; cursor:pointer;">Reddet</button>
+            </div>
+        </div>
+    `).join("");
+}
+
+window.approveAppointment = async function(id) {
+    try {
+        const appointments = await getAppointments();
+        const appToApprove = appointments.find(a => a.id === id);
+
+        if (!appToApprove) return;
+
+        const hasConflict = appointments.some(app => 
+            app.id !== id && 
+            app.date === appToApprove.date && 
+            app.time === appToApprove.time && 
+            app.status === 'approved'
+        );
+
+        if (hasConflict) {
+            alert(`⚠️ Dikkat! ${appToApprove.date} tarihinde ve saat ${appToApprove.time} için zaten onaylanmış başka bir randevu var.`);
+            return;
+        }
+
+        await updateDoc(doc(db, "appointments", id), { status: 'approved' });
+        renderPendingAppointments();
+        initCalendar('masterCalendar', '28SENDK29');
+        alert("✅ Randevu onaylandı.");
+    } catch (e) {
+        console.error("Hata (approveAppointment):", e);
+    }
+};
+
+window.rejectAppointment = async function(id) {
+    await deleteAppointment(id);
+    renderPendingAppointments();
+};
+
+window.addNewClient = async function(e) {
+    e.preventDefault();
+    const code = document.getElementById("newClientCode").value.trim().toUpperCase();
+    const name = document.getElementById("newClientName").value.trim();
+
+    if (!code || !name) return;
+
+    try {
+        await setDoc(doc(db, "clients", code), {
+            code,
+            name,
+            homework: "Henüz tanımlanmış ödeviniz bulunmuyor.",
+            homeworkDate: null,
+            payment: "0 €",
+            privateNotes: ""
+        });
+
+        alert(`✅ Yeni Danışan Eklendi! Kod: ${code}`);
+        document.getElementById("newClientCode").value = "";
+        document.getElementById("newClientName").value = "";
+        populateClientSelect();
+    } catch (e) {
+        console.error("Hata (addNewClient):", e);
+    }
+};
+
+window.deleteClientAccount = async function() {
+    const select = document.getElementById("clientSelect");
+    const code = select.value;
+
+    if (!code) return;
+
+    if (confirm(`⚠️ ${code} kodlu danışan hesabını silmek istediğinize emin misiniz?`)) {
+        try {
+            await deleteDoc(doc(db, "clients", code));
+            alert("✅ Danışan hesabı başarıyla silindi.");
+            populateClientSelect();
+        } catch (e) {
+            console.error("Hata (deleteClientAccount):", e);
+        }
+    }
+};
+
+async function populateClientSelect() {
+    const select = document.getElementById("clientSelect");
+    if (!select) return;
+
+    try {
+        const querySnapshot = await getDocs(collection(db, "clients"));
+        if (querySnapshot.empty) {
+            select.innerHTML = "<option value=''>Kayıtlı Danışan Yok</option>";
+            return;
+        }
+
+        select.innerHTML = querySnapshot.docs.map(docSnap => {
+            const data = docSnap.data();
+            return `<option value="${docSnap.id}">${data.name} (${docSnap.id})</option>`;
+        }).join("");
+
+        loadClientData();
+    } catch (e) {
+        console.error("Hata (populateClientSelect):", e);
+    }
+}
+
+window.loadClientData = async function() {
+    const select = document.getElementById("clientSelect");
+    const code = select?.value;
+    if (!code) return;
+
+    try {
+        const docSnap = await getDoc(doc(db, "clients", code));
+        if (docSnap.exists()) {
+            const client = docSnap.data();
+            const hw = document.getElementById("clientHomework");
+            const pay = document.getElementById("clientPayment");
+            const notes = document.getElementById("clientPrivateNotes");
+
+            if (hw) hw.value = client.homework || "";
+            if (pay) pay.value = client.payment || "";
+            if (notes) notes.value = client.privateNotes || "";
+        }
+    } catch (e) {
+        console.error("Hata (loadClientData):", e);
+    }
+};
+
+window.saveClientData = async function() {
+    const select = document.getElementById("clientSelect");
+    const code = select?.value;
+    if (!code) return;
+
+    const hw = document.getElementById("clientHomework");
+    const pay = document.getElementById("clientPayment");
+    const notes = document.getElementById("clientPrivateNotes");
+
+    try {
+        await updateDoc(doc(db, "clients", code), {
+            homework: hw ? hw.value : "",
+            homeworkDate: new Date().toISOString(),
+            payment: pay ? pay.value : "",
+            privateNotes: notes ? notes.value : ""
+        });
+        alert("✅ Danışan bilgileri güncellendi!");
+    } catch (e) {
+        console.error("Hata (saveClientData):", e);
+    }
+};
+
+/* ==========================================
+   6. CLIENT DASHBOARD LOGIK
+   ========================================== */
+async function loadClientDashboard(code) {
+    await cleanExpiredHomework();
+
+    const welcomeTitle = document.getElementById("clientWelcomeTitle");
+    const homeworkEl = document.getElementById("displayHomework");
+    const paymentEl = document.getElementById("displayPayment");
+    const nameInput = document.getElementById("clientName");
+
+    try {
+        const docSnap = await getDoc(doc(db, "clients", code));
+        if (docSnap.exists()) {
+            const client = docSnap.data();
+            if (welcomeTitle) welcomeTitle.innerText = `Hoş Geldiniz, ${client.name}`;
+            if (homeworkEl) homeworkEl.innerText = client.homework || "Henüz tanımlanmış ödeviniz bulunmuyor.";
+            if (paymentEl) paymentEl.innerText = client.payment || "0 €";
+            if (nameInput) nameInput.value = client.name;
+        } else {
+            if (welcomeTitle) welcomeTitle.innerText = `Hoş Geldiniz (${code})`;
+        }
+    } catch (e) {
+        console.error("Hata (loadClientDashboard):", e);
+    }
+
+    initCalendar('clientCalendar', code);
+}
+
+/* ==========================================
+   7. YORUM YÖNETİMİ
+   ========================================== */
+async function getComments() {
+    try {
+        const q = query(collection(db, "comments"), orderBy("createdAt", "desc"));
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+    } catch (e) {
+        console.error("Hata (getComments):", e);
+        return [];
+    }
+}
+
+async function renderComments() {
+    const grid = document.getElementById("comments-grid");
+    if (!grid) return;
+
+    const comments = await getComments();
+    grid.innerHTML = comments.map(c => `
+        <div class="comment-card">
+            <div class="comment-header">
+                <strong>${escapeHTML(c.name)}</strong>
+                <span class="stars">${"★".repeat(c.stars)}${"☆".repeat(5 - c.stars)}</span>
+            </div>
+            <p>${escapeHTML(c.text)}</p>
+        </div>
+    `).join("");
+}
+
+async function renderMasterComments() {
+    const list = document.getElementById("masterCommentsList");
+    if (!list) return;
+
+    const comments = await getComments();
+    list.innerHTML = comments.map(c => `
+        <div class="master-comment-item" style="padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <strong>${escapeHTML(c.name)}</strong> (${"★".repeat(c.stars)})<br>
+                <small>${escapeHTML(c.text)}</small>
+            </div>
+            <button onclick="deleteComment('${c.id}')" class="btn-delete-comment" style="background:#c0392b; color:#fff; border:none; padding:5px 10px; border-radius:3px; cursor:pointer;"><i class="fas fa-trash"></i> Yorumu Sil</button>
+        </div>
+    `).join("");
+}
+
+window.deleteComment = async function(id) {
+    if (confirm("Bu yorumu silmek istediğinize emin misiniz?")) {
+        try {
+            await deleteDoc(doc(db, "comments", id));
+            renderMasterComments();
+            renderComments();
+            alert("✅ Yorum silindi.");
+        } catch (e) {
+            console.error("Hata (deleteComment):", e);
+        }
+    }
+};
+
+window.addComment = async function(event) {
+    event.preventDefault();
+
+    const nameInput = document.getElementById("commentName");
+    const starsSelect = document.getElementById("commentStars");
+    const textInput = document.getElementById("commentText");
+
+    if (!nameInput || !starsSelect || !textInput) return;
+
+    const name = nameInput.value.trim();
+    const stars = parseInt(starsSelect.value, 10);
+    const text = textInput.value.trim();
+
+    if (!name || !text) {
+        alert("Lütfen adınızı ve yorumunuzu giriniz.");
+        return;
+    }
+
+    try {
+        await addDoc(collection(db, "comments"), {
+            name: name,
+            stars: stars,
+            text: text,
+            createdAt: new Date().toISOString()
+        });
+
+        renderComments();
+        nameInput.value = "";
+        textInput.value = "";
+        starsSelect.value = "5";
+
+        alert("✅ Yorumunuz başarıyla gönderildi ve kaydedildi!");
+    } catch (e) {
+        console.error("Hata (addComment):", e);
+        alert("⚠️ Yorum gönderilirken bir hata oluştu.");
+    }
+};
+
+/* ==========================================
+   8. INTELLIGENTER ASİSTAN CHAT
+   ========================================== */
+window.toggleAsistanChat = function() {
+    const modal = document.getElementById("asistanModal") || document.getElementById("assistantModal");
+    if (!modal) return;
+    modal.style.display = (modal.style.display === "none" || modal.style.display === "") ? "flex" : "none";
+};
+
+window.handleAssistantSubmit = function(event) {
+    event.preventDefault();
+    const input = document.getElementById("asistanMsgInput") || document.getElementById("assistantInput");
+    const chatBox = document.getElementById("asistanChatBody") || document.getElementById("assistantChatBox");
+    
+    if (!input || !chatBox) return;
+
+    const text = input.value.trim();
+    if (!text) return;
+
+    const userDiv = document.createElement("div");
+    userDiv.className = "msg user-msg message";
+    userDiv.style.cssText = "background: #8c6a56; color: white; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px; text-align: right; margin-left: 20px; font-size: 14px;";
+    userDiv.innerText = text;
+    chatBox.appendChild(userDiv);
+
+    input.value = "";
+    chatBox.scrollTop = chatBox.scrollHeight;
+
+    setTimeout(() => {
+        const botReply = generateAssistantReply(text);
+        
+        const botDiv = document.createElement("div");
+        botDiv.className = "msg bot-msg message";
+        botDiv.style.cssText = "background: #e8dfd8; color: #333; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px; font-size: 14px; line-height: 1.4;";
+        botDiv.innerText = botReply;
+        chatBox.appendChild(botDiv);
+
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }, 600);
+};
+
+window.sendAsistanMessage = function(event) {
+    window.handleAssistantSubmit(event);
+};
+
+function generateAssistantReply(query) {
+    const q = query.toLowerCase().trim();
+
+    if (q.includes("çıkama") || q.includes("cikama") || q.includes("kalır mıyım") || q.includes("kalir miyim")) {
+        return "Kesinlikle hayır. Hipnoz derin bir gevşeme halidir ve uyku değildir. İstediğiniz an gözlerinizi açıp hipnozdan çıkabilirsiniz. Hipnozda takılı kalmak gibi bir durum tıbben ve psikolojik olarak mümkün değildir.";
+    }
+    if (q.includes("bilinç") || q.includes("bilinc") || q.includes("kayıp") || q.includes("kayip") || q.includes("kontrol")) {
+        return "Hayır, ne Hipnozda ne de Deep EFT çalışmalarında bilincinizi veya kontrolünüzü kaybetmezsiniz. Tüm süreç boyunca ne konuştuğunuzun farkında olursunuz ve kontrol tamamen sizdedir.";
+    }
+    if (q.includes("sır") || q.includes("sir") || q.includes("istemediğim") || q.includes("istemedigim")) {
+        return "Hipnoz esnasında istemediğiniz hiçbir şeyi söylemezsiniz veya yapmazsınız. Zihniniz ve etik değerleriniz sizi her zaman korur.";
+    }
+    if (q.includes("zarar") || q.includes("yan etki") || q.includes("tehlikeli")) {
+        return "Hipnoz ve Deep EFT tamamen doğal ve güvenli yöntemlerdir. Hiçbir yan etkisi veya tehlikesi yoktur. Sadece derin bir zihinsel ve bedensel rahatlama sağlarsınız.";
+    }
+    if (q.includes("unuttum") || q.includes("kaybettim") || q.includes("şifre") || q.includes("sifre") || q.includes("hatırlamıyorum") || q.includes("hatirlamiyorum")) {
+        return "Giriş kodunuzu unuttuysanız endişelenmeyin! Bize WhatsApp veya Instagram DM üzerinden adınız ve soyadınızla ulaşırsanız, kodunuzu size hemen tekrar iletebiliriz.";
+    }
+    if (q.includes("hipnoz") || q.includes("hypnose")) {
+        return "Hipnoterapi seans ücreti 170 €'dur. Hipnoz, bilinçaltınızdaki olumsuz inançları ve blokajları dönüştürmek için kullanılan son derece etkili ve güvenli bir yöntemdir.";
+    }
+    if (q.includes("eft") || q.includes("deep eft")) {
+        return "Deep EFT seansları saatlik 65 €'dur. Bedenimizdeki enerji meridyenlerine hafif dokunuşlar yaparak geçmiş travmaları ve duygusal yükleri serbest bırakma yöntemidir.";
+    }
+    if (q.includes("ucret") || q.includes("fiyat") || q.includes("preis") || q.includes("kosten") || q.includes("ödeme") || q.includes("odeme") || q.includes("paypal")) {
+        return "Hipnoterapi seans ücreti 170 €'dur. Deep EFT ve diğer seanslar ise saatlik 65 €'dur. Ödemelerinizi Ödeme sayfamız üzerinden PayPal ile gerçekleştirebilirsiniz.";
+    }
+    if (q.includes("kod") || q.includes("giris") || q.includes("giriş") || q.includes("portal")) {
+        return "Danışan portalı giriş kodunuz seansınız onaylandıktan sonra size özel olarak iletilir. Kodunuzu unuttuysanız veya ilk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
+    }
+    if (q.includes("randevu") || q.includes("termin") || q.includes("seans")) {
+        return "Randevu almak için Danışan Portalı üzerinden uygun tarih ve saati seçebilirsiniz. İlk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
+    }
+    if (q.includes("merhaba") || q.includes("selam") || q.includes("hallo")) {
+        return "Merhaba! Derya Kılıç Sanal Asistanına hoş geldiniz. Terapi yöntemleri, randevu süreci veya aklınıza takılan sorular hakkında bana danışabilirsiniz. İlk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
+    }
+    if (q.includes("teşekkür") || q.includes("tesekkur") || q.includes("sağol") || q.includes("danke")) {
+        return "Rica ederim! Aklınıza takılan başka bir soru olursa her zaman buradayım.";
+    }
+
+    return "Size nasıl yardımcı olabilirim? Terapi seansları (Hipnoz/EFT), randevular, giriş kodları ve ücretlerimiz hakkında soru sorabilirsiniz. İlk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
+}
+
+function escapeHTML(str) {
+    if (!str) return "";
+    return str.replace(/[&<>'"]/g, 
+        tag => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            "'": '&#39;',
+            '"': '&quot;'
+        }[tag] || tag)
+    );
+}
+
+/* ==========================================
+   9. LOGOUT FUNKTION
+   ========================================== */
+window.logoutPortal = function() {
+    localStorage.removeItem("currentPortalUser");
+    localStorage.removeItem("portalAccessCode");
+    sessionStorage.removeItem("portalAccessCode");
+    localStorage.removeItem("currentUserRole");
+
+    const masterDash = document.getElementById("masterDashboard");
+    const clientDash = document.getElementById("clientDashboard");
+    const loginSec = document.getElementById("loginSection") || document.getElementById("portalLoginSection");
+
+    if (masterDash) masterDash.style.display = "none";
+    if (clientDash) clientDash.style.display = "none";
+    if (loginSec) loginSec.style.display = "block";
+
+    window.location.href = "index.html";
+};/* ==========================================
+   FIREBASE MODULAR IMPORTS & INITIALISIERUNG
+   ========================================== */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+import { 
+    getFirestore, 
+    collection, 
+    getDocs, 
+    doc, 
+    getDoc, 
+    setDoc, 
+    addDoc, 
+    updateDoc, 
+    deleteDoc, 
+    query, 
+    orderBy 
+} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyBYSifQ5m7G_sdyN0JAkkC8SV6x9gY0-Oo",
+    authDomain: "derya-kilic-website.firebaseapp.com",
+    projectId: "derya-kilic-website",
+    storageBucket: "derya-kilic-website.firebasestorage.app",
+    messagingSenderId: "493728541181",
+    appId: "1:493728541181:web:d361a4ca1c8dff5ed65194",
+    measurementId: "G-DE18012D63"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+/* ==========================================
+   1. INITIALISIERUNG & COOKIE BANNER
+   ========================================== */
+document.addEventListener("DOMContentLoaded", () => {
+    renderComments();
+    cleanExpiredHomework();
+    initCookieBanner();
+});
+
+function initCookieBanner() {
+    const cookieOverlay = document.getElementById("cookieModalOverlay");
+    const acceptBtn = document.getElementById("btnAcceptCookies");
+
+    if (localStorage.getItem("cookies_accepted") === "true") {
+        if (cookieOverlay) cookieOverlay.style.display = "none";
+        return;
+    }
+
+    if (cookieOverlay) {
+        cookieOverlay.style.display = "flex";
+    } else {
+        const banner = document.createElement("div");
+        banner.className = "cookie-overlay-box";
+        banner.id = "cookieBox";
+        banner.innerHTML = `
+            <div style="font-size:24px; margin-bottom:5px;">🍪</div>
+            <p style="margin:0; font-size:0.88rem; color:#444;">
+                Bu web sitesi deneyiminizi geliştirmek ve güvenli bir hizmet sunmak için çerezler kullanmaktadır.
+            </p>
+            <button id="btnAcceptInline" class="cookie-btn-accept">Kabul Et / Akzeptieren</button>
+        `;
+        document.body.appendChild(banner);
+        document.getElementById("btnAcceptInline")?.addEventListener("click", acceptCookiesNow);
+    }
+
+    if (acceptBtn) {
+        acceptBtn.addEventListener("click", acceptCookiesNow);
+    }
+}
+
+window.acceptCookiesNow = function() {
+    localStorage.setItem("cookies_accepted", "true");
+    const box = document.getElementById("cookieBox");
+    if (box) box.remove();
+    const cookieOverlay = document.getElementById("cookieModalOverlay");
+    if (cookieOverlay) cookieOverlay.style.display = "none";
+};
+
+/* ==========================================
+   2. DANIŞAN & ÖDEV TEMİZLİK LOGİĞİ
+   ========================================== */
+async function getAppointments() {
+    try {
+        const querySnapshot = await getDocs(collection(db, "appointments"));
+        return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+    } catch (e) {
+        console.error("Hata (getAppointments):", e);
+        return [];
+    }
+}
+
+async function cleanExpiredHomework() {
+    try {
+        const clientsSnap = await getDocs(collection(db, "clients"));
+        const appointments = await getAppointments();
+        const now = new Date();
+
+        for (const docSnap of clientsSnap.docs) {
+            const client = docSnap.data();
+            if (client.homeworkDate) {
+                const hwDate = new Date(client.homeworkDate);
+                const diffDays = (now - hwDate) / (1000 * 3600 * 24);
+                const hasPassedApp = appointments.some(app => 
+                    app.clientCode === client.code && 
+                    new Date(app.date) <= now && 
+                    app.status === 'approved'
+                );
+
+                if (diffDays >= 7 || hasPassedApp) {
+                    await updateDoc(doc(db, "clients", docSnap.id), {
+                        homework: "Henüz tanımlanmış ödeviniz bulunmuyor.",
+                        homeworkDate: null
+                    });
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Hata (cleanExpiredHomework):", e);
+    }
+}
+
+/* ==========================================
+   3. KALENDER SYSTEM & ANZEIGELOGIK
+   ========================================== */
+async function initCalendar(elementId, currentUserCode = null) {
+    const calendarEl = document.getElementById(elementId);
+    if (!calendarEl) return;
+
+    calendarEl.innerHTML = "";
+
+    const appointments = await getAppointments();
+    const isMaster = currentUserCode === '28SENDK29' || currentUserCode === 'master';
+
+    const events = appointments
+        .filter(app => app.status === 'approved')
+        .map(app => {
+            const isMine = app.clientCode && currentUserCode && app.clientCode.toLowerCase() === currentUserCode.toLowerCase();
+            let title = 'DOLU / Besetzt';
+            let color = '#c0392b';
+
+            if (isMaster) {
+                title = `${app.name} (${app.service})`;
+                color = '#8c725d';
+            } else if (isMine) {
+                title = `Randevunuz: ${app.service}`;
+                color = '#27ae60';
+            }
+
+            return {
+                id: app.id.toString(),
+                title: title,
+                start: `${app.date}T${app.time}`,
+                color: color,
+                extendedProps: app
+            };
+        });
+
+    if (typeof FullCalendar !== 'undefined') {
+        const calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            locale: 'tr',
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek'
+            },
+            events: events,
+            dateClick: function(info) {
+                const dateInput = document.getElementById('selectedDate');
+                if (dateInput) dateInput.value = info.dateStr;
+            },
+            eventClick: async function(info) {
+                const app = info.event.extendedProps;
+                const isMine = app.clientCode && currentUserCode && app.clientCode.toLowerCase() === currentUserCode.toLowerCase();
+
+                if (isMaster) {
+                    const confirmCancel = confirm(
+                        `📅 RANDEVU DETAYLARI:\n\n` +
+                        `Danışan: ${app.name}\n` +
+                        `Telefon: ${app.phone}\n` +
+                        `E-Posta: ${app.email}\n` +
+                        `Tarih: ${app.date} Saat: ${app.time}\n` +
+                        `Hizmet: ${app.service}\n\n` +
+                        `Bu randevuyu iptal etmek / silmek istiyor musunuz?`
+                    );
+                    if (confirmCancel) {
+                        await deleteAppointment(app.id);
+                        initCalendar(elementId, currentUserCode);
+                    }
+                } else if (isMine) {
+                    const confirmCancel = confirm(
+                        `🟢 SİZİN RANDEVUNUZ:\n\n` +
+                        `Tarih: ${app.date}\n` +
+                        `Saat: ${app.time}\n` +
+                        `Hizmet: ${app.service}\n\n` +
+                        `Randevunuzu iptal etmek istiyor musunuz?`
+                    );
+                    if (confirmCancel) {
+                        await deleteAppointment(app.id);
+                        initCalendar(elementId, currentUserCode);
+                    }
+                } else {
+                    alert("🔒 Bu randevu doludur.");
+                }
+            }
+        });
+        calendar.render();
+    }
+}
+
+async function deleteAppointment(id) {
+    try {
+        await deleteDoc(doc(db, "appointments", id));
+        alert("✅ Randevu başarıyla iptal edildi.");
+    } catch (e) {
+        console.error("Hata (deleteAppointment):", e);
+    }
+}
+
+window.handleBookingSubmit = async function(event) {
+    event.preventDefault();
+
+    const currentCode = localStorage.getItem("currentPortalUser") || "";
+    const name = document.getElementById("clientName").value.trim();
+    const email = document.getElementById("clientEmail").value.trim();
+    const phone = document.getElementById("clientPhone").value.trim();
+    const date = document.getElementById("selectedDate").value;
+    const time = document.getElementById("selectedTime").value;
+    const service = document.getElementById("serviceType").value;
+
+    const appointments = await getAppointments();
+    const isConflict = appointments.some(app => app.date === date && app.time === time && app.status === 'approved');
+
+    if (isConflict) {
+        alert("⚠️ Bu randevu doludur. Lütfen başka bir saat veya tarih seçiniz.");
+        return;
+    }
+
+    const newAppointment = {
+        clientCode: currentCode,
+        name,
+        email,
+        phone,
+        date,
+        time,
+        service,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+    };
+
+    try {
+        await addDoc(collection(db, "appointments"), newAppointment);
+
+        const mailSubject = encodeURIComponent(`Yeni Randevu Talebi: ${name}`);
+        const mailBody = encodeURIComponent(
+            `Merhaba Derya Hanım,\n\nYeni bir randevu talebi oluşturuldu:\n\n` +
+            `Danışan: ${name}\n` +
+            `E-Posta: ${email}\n` +
+            `Telefon: ${phone}\n` +
+            `Tarih: ${date}\n` +
+            `Saat: ${time}\n` +
+            `Hizmet: ${service}\n\n` +
+            `Talebi onaylamak için Yönetim Paneline giriş yapabilirsiniz.`
+        );
+
+        window.location.href = `mailto:goldensunderya@hotmail.com?subject=${mailSubject}&body=${mailBody}`;
+
+        alert("✅ Randevu talebiniz başarıyla alındı! Derya Hanım onayladıktan sonra randevunuz takvimde kesinleşecektir.");
+        document.getElementById("appointmentForm").reset();
+        
+        initCalendar('clientCalendar', currentCode);
+    } catch (e) {
+        console.error("Hata (handleBookingSubmit):", e);
+        alert("⚠️ Bir hata oluştu. Lütfen tekrar deneyiniz.");
+    }
+};
+
+/* ==========================================
+   4. PORTAL LOGIN SYSTEM
+   ========================================== */
+window.handlePortalLogin = async function(event) {
+    if (event) event.preventDefault();
+
+    const input = document.getElementById('accessCode');
+    const errorMsg = document.getElementById('loginError');
+    const loginSection = document.getElementById('loginSection');
+    const masterDashboard = document.getElementById('masterDashboard');
+    const clientDashboard = document.getElementById('clientDashboard');
+
+    if (!input) return;
+    const code = input.value.trim();
+
+    if (!code) {
+        if (errorMsg) {
+            errorMsg.innerText = "Lütfen bir kod giriniz.";
+            errorMsg.style.display = "block";
+        }
+        return;
+    }
+
+    localStorage.setItem("currentPortalUser", code.toLowerCase());
+
+    // Master-Login
+    if (code.toLowerCase() === 'master' || code.toUpperCase() === '28SENDK29') {
+        if (loginSection) loginSection.style.display = 'none';
+        if (masterDashboard) masterDashboard.style.display = 'block';
+        if (clientDashboard) clientDashboard.style.display = 'none';
+        if (errorMsg) errorMsg.style.display = 'none';
+        
+        loadMasterDashboard();
+        return;
+    }
+
+    // Klienten-Login über Firestore
+    try {
+        const docRef = doc(db, "clients", code.toUpperCase());
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+            if (loginSection) loginSection.style.display = 'none';
+            if (masterDashboard) masterDashboard.style.display = 'none';
+            if (clientDashboard) clientDashboard.style.display = 'block';
+            if (errorMsg) errorMsg.style.display = 'none';
+
+            loadClientDashboard(code.toUpperCase());
+        } else {
+            if (errorMsg) {
+                errorMsg.innerText = "❌ Geçersiz giriş kodu! Lütfen geçerli bir kod giriniz.";
+                errorMsg.style.display = 'block';
+            }
+        }
+    } catch (e) {
+        console.error("Hata (handlePortalLogin):", e);
+    }
+};
+
+/* ==========================================
+   5. MASTER DASHBOARD
+   ========================================== */
+function loadMasterDashboard() {
+    renderPendingAppointments();
+    initCalendar('masterCalendar', '28SENDK29');
+    populateClientSelect();
+    renderMasterComments();
+}
+
+async function renderPendingAppointments() {
+    const listEl = document.getElementById("pendingAppointmentsList");
+    if (!listEl) return;
+
+    const appointments = (await getAppointments()).filter(app => app.status === 'pending');
+
+    if (appointments.length === 0) {
+        listEl.innerHTML = "<p class='no-data'>Bekleyen randevu talebi bulunmuyor.</p>";
+        return;
+    }
+
+    listEl.innerHTML = appointments.map(app => `
+        <div class="pending-item" style="padding: 12px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+            <div class="pending-info">
+                <strong>${app.name}</strong> (${app.service})<br>
+                📅 ${app.date} - ⏰ ${app.time}<br>
+                📞 ${app.phone} | ✉️ ${app.email}
+            </div>
+            <div class="pending-actions">
+                <button onclick="approveAppointment('${app.id}')" class="btn-approve" style="background:#27ae60; color:#fff; border:none; padding: 6px 12px; border-radius:4px; cursor:pointer; margin-right: 5px;">Onayla</button>
+                <button onclick="rejectAppointment('${app.id}')" class="btn-reject" style="background:#c0392b; color:#fff; border:none; padding: 6px 12px; border-radius:4px; cursor:pointer;">Reddet</button>
+            </div>
+        </div>
+    `).join("");
+}
+
+window.approveAppointment = async function(id) {
+    try {
+        const appointments = await getAppointments();
+        const appToApprove = appointments.find(a => a.id === id);
+
+        if (!appToApprove) return;
+
+        const hasConflict = appointments.some(app => 
+            app.id !== id && 
+            app.date === appToApprove.date && 
+            app.time === appToApprove.time && 
+            app.status === 'approved'
+        );
+
+        if (hasConflict) {
+            alert(`⚠️ Dikkat! ${appToApprove.date} tarihinde ve saat ${appToApprove.time} için zaten onaylanmış başka bir randevu var.`);
+            return;
+        }
+
+        await updateDoc(doc(db, "appointments", id), { status: 'approved' });
+        renderPendingAppointments();
+        initCalendar('masterCalendar', '28SENDK29');
+        alert("✅ Randevu onaylandı.");
+    } catch (e) {
+        console.error("Hata (approveAppointment):", e);
+    }
+};
+
+window.rejectAppointment = async function(id) {
+    await deleteAppointment(id);
+    renderPendingAppointments();
+};
+
+window.addNewClient = async function(e) {
+    e.preventDefault();
+    const code = document.getElementById("newClientCode").value.trim().toUpperCase();
+    const name = document.getElementById("newClientName").value.trim();
+
+    if (!code || !name) return;
+
+    try {
+        await setDoc(doc(db, "clients", code), {
+            code,
+            name,
+            homework: "Henüz tanımlanmış ödeviniz bulunmuyor.",
+            homeworkDate: null,
+            payment: "0 €",
+            privateNotes: ""
+        });
+
+        alert(`✅ Yeni Danışan Eklendi! Kod: ${code}`);
+        document.getElementById("newClientCode").value = "";
+        document.getElementById("newClientName").value = "";
+        populateClientSelect();
+    } catch (e) {
+        console.error("Hata (addNewClient):", e);
+    }
+};
+
+window.deleteClientAccount = async function() {
+    const select = document.getElementById("clientSelect");
+    const code = select.value;
+
+    if (!code) return;
+
+    if (confirm(`⚠️ ${code} kodlu danışan hesabını silmek istediğinize emin misiniz?`)) {
+        try {
+            await deleteDoc(doc(db, "clients", code));
+            alert("✅ Danışan hesabı başarıyla silindi.");
+            populateClientSelect();
+        } catch (e) {
+            console.error("Hata (deleteClientAccount):", e);
+        }
+    }
+};
+
+async function populateClientSelect() {
+    const select = document.getElementById("clientSelect");
+    if (!select) return;
+
+    try {
+        const querySnapshot = await getDocs(collection(db, "clients"));
+        if (querySnapshot.empty) {
+            select.innerHTML = "<option value=''>Kayıtlı Danışan Yok</option>";
+            return;
+        }
+
+        select.innerHTML = querySnapshot.docs.map(docSnap => {
+            const data = docSnap.data();
+            return `<option value="${docSnap.id}">${data.name} (${docSnap.id})</option>`;
+        }).join("");
+
+        loadClientData();
+    } catch (e) {
+        console.error("Hata (populateClientSelect):", e);
+    }
+}
+
+window.loadClientData = async function() {
+    const select = document.getElementById("clientSelect");
+    const code = select?.value;
+    if (!code) return;
+
+    try {
+        const docSnap = await getDoc(doc(db, "clients", code));
+        if (docSnap.exists()) {
+            const client = docSnap.data();
+            const hw = document.getElementById("clientHomework");
+            const pay = document.getElementById("clientPayment");
+            const notes = document.getElementById("clientPrivateNotes");
+
+            if (hw) hw.value = client.homework || "";
+            if (pay) pay.value = client.payment || "";
+            if (notes) notes.value = client.privateNotes || "";
+        }
+    } catch (e) {
+        console.error("Hata (loadClientData):", e);
+    }
+};
+
+window.saveClientData = async function() {
+    const select = document.getElementById("clientSelect");
+    const code = select?.value;
+    if (!code) return;
+
+    const hw = document.getElementById("clientHomework");
+    const pay = document.getElementById("clientPayment");
+    const notes = document.getElementById("clientPrivateNotes");
+
+    try {
+        await updateDoc(doc(db, "clients", code), {
+            homework: hw ? hw.value : "",
+            homeworkDate: new Date().toISOString(),
+            payment: pay ? pay.value : "",
+            privateNotes: notes ? notes.value : ""
+        });
+        alert("✅ Danışan bilgileri güncellendi!");
+    } catch (e) {
+        console.error("Hata (saveClientData):", e);
+    }
+};
+
+/* ==========================================
+   6. CLIENT DASHBOARD LOGIK
+   ========================================== */
+async function loadClientDashboard(code) {
+    await cleanExpiredHomework();
+
+    const welcomeTitle = document.getElementById("clientWelcomeTitle");
+    const homeworkEl = document.getElementById("displayHomework");
+    const paymentEl = document.getElementById("displayPayment");
+    const nameInput = document.getElementById("clientName");
+
+    try {
+        const docSnap = await getDoc(doc(db, "clients", code));
+        if (docSnap.exists()) {
+            const client = docSnap.data();
+            if (welcomeTitle) welcomeTitle.innerText = `Hoş Geldiniz, ${client.name}`;
+            if (homeworkEl) homeworkEl.innerText = client.homework || "Henüz tanımlanmış ödeviniz bulunmuyor.";
+            if (paymentEl) paymentEl.innerText = client.payment || "0 €";
+            if (nameInput) nameInput.value = client.name;
+        } else {
+            if (welcomeTitle) welcomeTitle.innerText = `Hoş Geldiniz (${code})`;
+        }
+    } catch (e) {
+        console.error("Hata (loadClientDashboard):", e);
+    }
+
+    initCalendar('clientCalendar', code);
+}
+
+/* ==========================================
+   7. YORUM YÖNETİMİ
+   ========================================== */
+async function getComments() {
+    try {
+        const q = query(collection(db, "comments"), orderBy("createdAt", "desc"));
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+    } catch (e) {
+        console.error("Hata (getComments):", e);
+        return [];
+    }
+}
+
+async function renderComments() {
+    const grid = document.getElementById("comments-grid");
+    if (!grid) return;
+
+    const comments = await getComments();
+    grid.innerHTML = comments.map(c => `
+        <div class="comment-card">
+            <div class="comment-header">
+                <strong>${escapeHTML(c.name)}</strong>
+                <span class="stars">${"★".repeat(c.stars)}${"☆".repeat(5 - c.stars)}</span>
+            </div>
+            <p>${escapeHTML(c.text)}</p>
+        </div>
+    `).join("");
+}
+
+async function renderMasterComments() {
+    const list = document.getElementById("masterCommentsList");
+    if (!list) return;
+
+    const comments = await getComments();
+    list.innerHTML = comments.map(c => `
+        <div class="master-comment-item" style="padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <strong>${escapeHTML(c.name)}</strong> (${"★".repeat(c.stars)})<br>
+                <small>${escapeHTML(c.text)}</small>
+            </div>
+            <button onclick="deleteComment('${c.id}')" class="btn-delete-comment" style="background:#c0392b; color:#fff; border:none; padding:5px 10px; border-radius:3px; cursor:pointer;"><i class="fas fa-trash"></i> Yorumu Sil</button>
+        </div>
+    `).join("");
+}
+
+window.deleteComment = async function(id) {
+    if (confirm("Bu yorumu silmek istediğinize emin misiniz?")) {
+        try {
+            await deleteDoc(doc(db, "comments", id));
+            renderMasterComments();
+            renderComments();
+            alert("✅ Yorum silindi.");
+        } catch (e) {
+            console.error("Hata (deleteComment):", e);
+        }
+    }
+};
+
+window.addComment = async function(event) {
+    event.preventDefault();
+
+    const nameInput = document.getElementById("commentName");
+    const starsSelect = document.getElementById("commentStars");
+    const textInput = document.getElementById("commentText");
+
+    if (!nameInput || !starsSelect || !textInput) return;
+
+    const name = nameInput.value.trim();
+    const stars = parseInt(starsSelect.value, 10);
+    const text = textInput.value.trim();
+
+    if (!name || !text) {
+        alert("Lütfen adınızı ve yorumunuzu giriniz.");
+        return;
+    }
+
+    try {
+        await addDoc(collection(db, "comments"), {
+            name: name,
+            stars: stars,
+            text: text,
+            createdAt: new Date().toISOString()
+        });
+
+        renderComments();
+        nameInput.value = "";
+        textInput.value = "";
+        starsSelect.value = "5";
+
+        alert("✅ Yorumunuz başarıyla gönderildi ve kaydedildi!");
+    } catch (e) {
+        console.error("Hata (addComment):", e);
+        alert("⚠️ Yorum gönderilirken bir hata oluştu.");
+    }
+};
+
+/* ==========================================
+   8. INTELLIGENTER ASİSTAN CHAT
+   ========================================== */
+window.toggleAsistanChat = function() {
+    const modal = document.getElementById("asistanModal") || document.getElementById("assistantModal");
+    if (!modal) return;
+    modal.style.display = (modal.style.display === "none" || modal.style.display === "") ? "flex" : "none";
+};
+
+window.handleAssistantSubmit = function(event) {
+    event.preventDefault();
+    const input = document.getElementById("asistanMsgInput") || document.getElementById("assistantInput");
+    const chatBox = document.getElementById("asistanChatBody") || document.getElementById("assistantChatBox");
+    
+    if (!input || !chatBox) return;
+
+    const text = input.value.trim();
+    if (!text) return;
+
+    const userDiv = document.createElement("div");
+    userDiv.className = "msg user-msg message";
+    userDiv.style.cssText = "background: #8c6a56; color: white; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px; text-align: right; margin-left: 20px; font-size: 14px;";
+    userDiv.innerText = text;
+    chatBox.appendChild(userDiv);
+
+    input.value = "";
+    chatBox.scrollTop = chatBox.scrollHeight;
+
+    setTimeout(() => {
+        const botReply = generateAssistantReply(text);
+        
+        const botDiv = document.createElement("div");
+        botDiv.className = "msg bot-msg message";
+        botDiv.style.cssText = "background: #e8dfd8; color: #333; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px; font-size: 14px; line-height: 1.4;";
+        botDiv.innerText = botReply;
+        chatBox.appendChild(botDiv);
+
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }, 600);
+};
+
+window.sendAsistanMessage = function(event) {
+    window.handleAssistantSubmit(event);
+};
+
+function generateAssistantReply(query) {
+    const q = query.toLowerCase().trim();
+
+    if (q.includes("çıkama") || q.includes("cikama") || q.includes("kalır mıyım") || q.includes("kalir miyim")) {
+        return "Kesinlikle hayır. Hipnoz derin bir gevşeme halidir ve uyku değildir. İstediğiniz an gözlerinizi açıp hipnozdan çıkabilirsiniz. Hipnozda takılı kalmak gibi bir durum tıbben ve psikolojik olarak mümkün değildir.";
+    }
+    if (q.includes("bilinç") || q.includes("bilinc") || q.includes("kayıp") || q.includes("kayip") || q.includes("kontrol")) {
+        return "Hayır, ne Hipnozda ne de Deep EFT çalışmalarında bilincinizi veya kontrolünüzü kaybetmezsiniz. Tüm süreç boyunca ne konuştuğunuzun farkında olursunuz ve kontrol tamamen sizdedir.";
+    }
+    if (q.includes("sır") || q.includes("sir") || q.includes("istemediğim") || q.includes("istemedigim")) {
+        return "Hipnoz esnasında istemediğiniz hiçbir şeyi söylemezsiniz veya yapmazsınız. Zihniniz ve etik değerleriniz sizi her zaman korur.";
+    }
+    if (q.includes("zarar") || q.includes("yan etki") || q.includes("tehlikeli")) {
+        return "Hipnoz ve Deep EFT tamamen doğal ve güvenli yöntemlerdir. Hiçbir yan etkisi veya tehlikesi yoktur. Sadece derin bir zihinsel ve bedensel rahatlama sağlarsınız.";
+    }
+    if (q.includes("unuttum") || q.includes("kaybettim") || q.includes("şifre") || q.includes("sifre") || q.includes("hatırlamıyorum") || q.includes("hatirlamiyorum")) {
+        return "Giriş kodunuzu unuttuysanız endişelenmeyin! Bize WhatsApp veya Instagram DM üzerinden adınız ve soyadınızla ulaşırsanız, kodunuzu size hemen tekrar iletebiliriz.";
+    }
+    if (q.includes("hipnoz") || q.includes("hypnose")) {
+        return "Hipnoterapi seans ücreti 170 €'dur. Hipnoz, bilinçaltınızdaki olumsuz inançları ve blokajları dönüştürmek için kullanılan son derece etkili ve güvenli bir yöntemdir.";
+    }
+    if (q.includes("eft") || q.includes("deep eft")) {
+        return "Deep EFT seansları saatlik 65 €'dur. Bedenimizdeki enerji meridyenlerine hafif dokunuşlar yaparak geçmiş travmaları ve duygusal yükleri serbest bırakma yöntemidir.";
+    }
+    if (q.includes("ucret") || q.includes("fiyat") || q.includes("preis") || q.includes("kosten") || q.includes("ödeme") || q.includes("odeme") || q.includes("paypal")) {
+        return "Hipnoterapi seans ücreti 170 €'dur. Deep EFT ve diğer seanslar ise saatlik 65 €'dur. Ödemelerinizi Ödeme sayfamız üzerinden PayPal ile gerçekleştirebilirsiniz.";
+    }
+    if (q.includes("kod") || q.includes("giris") || q.includes("giriş") || q.includes("portal")) {
+        return "Danışan portalı giriş kodunuz seansınız onaylandıktan sonra size özel olarak iletilir. Kodunuzu unuttuysanız veya ilk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
+    }
+    if (q.includes("randevu") || q.includes("termin") || q.includes("seans")) {
+        return "Randevu almak için Danışan Portalı üzerinden uygun tarih ve saati seçebilirsiniz. İlk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
+    }
+    if (q.includes("merhaba") || q.includes("selam") || q.includes("hallo")) {
+        return "Merhaba! Derya Kılıç Sanal Asistanına hoş geldiniz. Terapi yöntemleri, randevu süreci veya aklınıza takılan sorular hakkında bana danışabilirsiniz. İlk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
+    }
+    if (q.includes("teşekkür") || q.includes("tesekkur") || q.includes("sağol") || q.includes("danke")) {
+        return "Rica ederim! Aklınıza takılan başka bir soru olursa her zaman buradayım.";
+    }
+
+    return "Size nasıl yardımcı olabilirim? Terapi seansları (Hipnoz/EFT), randevular, giriş kodları ve ücretlerimiz hakkında soru sorabilirsiniz. İlk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
+}
+
+function escapeHTML(str) {
+    if (!str) return "";
+    return str.replace(/[&<>'"]/g, 
+        tag => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            "'": '&#39;',
+            '"': '&quot;'
+        }[tag] || tag)
+    );
+}
+
+/* ==========================================
+   9. LOGOUT FUNKTION
+   ========================================== */
+window.logoutPortal = function() {
+    localStorage.removeItem("currentPortalUser");
+    localStorage.removeItem("portalAccessCode");
+    sessionStorage.removeItem("portalAccessCode");
+    localStorage.removeItem("currentUserRole");
+
+    const masterDash = document.getElementById("masterDashboard");
+    const clientDash = document.getElementById("clientDashboard");
+    const loginSec = document.getElementById("loginSection") || document.getElementById("portalLoginSection");
+
+    if (masterDash) masterDash.style.display = "none";
+    if (clientDash) clientDash.style.display = "none";
+    if (loginSec) loginSec.style.display = "block";
+
+    window.location.href = "index.html";
+};/* ==========================================
+   FIREBASE MODULAR IMPORTS & INITIALISIERUNG
+   ========================================== */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+import { 
+    getFirestore, 
+    collection, 
+    getDocs, 
+    doc, 
+    getDoc, 
+    setDoc, 
+    addDoc, 
+    updateDoc, 
+    deleteDoc, 
+    query, 
+    orderBy 
+} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyBYSifQ5m7G_sdyN0JAkkC8SV6x9gY0-Oo",
+    authDomain: "derya-kilic-website.firebaseapp.com",
+    projectId: "derya-kilic-website",
+    storageBucket: "derya-kilic-website.firebasestorage.app",
+    messagingSenderId: "493728541181",
+    appId: "1:493728541181:web:d361a4ca1c8dff5ed65194",
+    measurementId: "G-DE18012D63"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+/* ==========================================
+   1. INITIALISIERUNG & COOKIE BANNER
+   ========================================== */
+document.addEventListener("DOMContentLoaded", () => {
+    renderComments();
+    cleanExpiredHomework();
+    initCookieBanner();
+});
+
+function initCookieBanner() {
+    const cookieOverlay = document.getElementById("cookieModalOverlay");
+    const acceptBtn = document.getElementById("btnAcceptCookies");
+
+    if (localStorage.getItem("cookies_accepted") === "true") {
+        if (cookieOverlay) cookieOverlay.style.display = "none";
+        return;
+    }
+
+    if (cookieOverlay) {
+        cookieOverlay.style.display = "flex";
+    } else {
+        const banner = document.createElement("div");
+        banner.className = "cookie-overlay-box";
+        banner.id = "cookieBox";
+        banner.innerHTML = `
+            <div style="font-size:24px; margin-bottom:5px;">🍪</div>
+            <p style="margin:0; font-size:0.88rem; color:#444;">
+                Bu web sitesi deneyiminizi geliştirmek ve güvenli bir hizmet sunmak için çerezler kullanmaktadır.
+            </p>
+            <button id="btnAcceptInline" class="cookie-btn-accept">Kabul Et / Akzeptieren</button>
+        `;
+        document.body.appendChild(banner);
+        document.getElementById("btnAcceptInline")?.addEventListener("click", acceptCookiesNow);
+    }
+
+    if (acceptBtn) {
+        acceptBtn.addEventListener("click", acceptCookiesNow);
+    }
+}
+
+window.acceptCookiesNow = function() {
+    localStorage.setItem("cookies_accepted", "true");
+    const box = document.getElementById("cookieBox");
+    if (box) box.remove();
+    const cookieOverlay = document.getElementById("cookieModalOverlay");
+    if (cookieOverlay) cookieOverlay.style.display = "none";
+};
+
+/* ==========================================
+   2. DANIŞAN & ÖDEV TEMİZLİK LOGİĞİ
+   ========================================== */
+async function getAppointments() {
+    try {
+        const querySnapshot = await getDocs(collection(db, "appointments"));
+        return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+    } catch (e) {
+        console.error("Hata (getAppointments):", e);
+        return [];
+    }
+}
+
+async function cleanExpiredHomework() {
+    try {
+        const clientsSnap = await getDocs(collection(db, "clients"));
+        const appointments = await getAppointments();
+        const now = new Date();
+
+        for (const docSnap of clientsSnap.docs) {
+            const client = docSnap.data();
+            if (client.homeworkDate) {
+                const hwDate = new Date(client.homeworkDate);
+                const diffDays = (now - hwDate) / (1000 * 3600 * 24);
+                const hasPassedApp = appointments.some(app => 
+                    app.clientCode === client.code && 
+                    new Date(app.date) <= now && 
+                    app.status === 'approved'
+                );
+
+                if (diffDays >= 7 || hasPassedApp) {
+                    await updateDoc(doc(db, "clients", docSnap.id), {
+                        homework: "Henüz tanımlanmış ödeviniz bulunmuyor.",
+                        homeworkDate: null
+                    });
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Hata (cleanExpiredHomework):", e);
+    }
+}
+
+/* ==========================================
+   3. KALENDER SYSTEM & ANZEIGELOGIK
+   ========================================== */
+async function initCalendar(elementId, currentUserCode = null) {
+    const calendarEl = document.getElementById(elementId);
+    if (!calendarEl) return;
+
+    calendarEl.innerHTML = "";
+
+    const appointments = await getAppointments();
+    const isMaster = currentUserCode === '28SENDK29' || currentUserCode === 'master';
+
+    const events = appointments
+        .filter(app => app.status === 'approved')
+        .map(app => {
+            const isMine = app.clientCode && currentUserCode && app.clientCode.toLowerCase() === currentUserCode.toLowerCase();
+            let title = 'DOLU / Besetzt';
+            let color = '#c0392b';
+
+            if (isMaster) {
+                title = `${app.name} (${app.service})`;
+                color = '#8c725d';
+            } else if (isMine) {
+                title = `Randevunuz: ${app.service}`;
+                color = '#27ae60';
+            }
+
+            return {
+                id: app.id.toString(),
+                title: title,
+                start: `${app.date}T${app.time}`,
+                color: color,
+                extendedProps: app
+            };
+        });
+
+    if (typeof FullCalendar !== 'undefined') {
+        const calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            locale: 'tr',
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek'
+            },
+            events: events,
+            dateClick: function(info) {
+                const dateInput = document.getElementById('selectedDate');
+                if (dateInput) dateInput.value = info.dateStr;
+            },
+            eventClick: async function(info) {
+                const app = info.event.extendedProps;
+                const isMine = app.clientCode && currentUserCode && app.clientCode.toLowerCase() === currentUserCode.toLowerCase();
+
+                if (isMaster) {
+                    const confirmCancel = confirm(
+                        `📅 RANDEVU DETAYLARI:\n\n` +
+                        `Danışan: ${app.name}\n` +
+                        `Telefon: ${app.phone}\n` +
+                        `E-Posta: ${app.email}\n` +
+                        `Tarih: ${app.date} Saat: ${app.time}\n` +
+                        `Hizmet: ${app.service}\n\n` +
+                        `Bu randevuyu iptal etmek / silmek istiyor musunuz?`
+                    );
+                    if (confirmCancel) {
+                        await deleteAppointment(app.id);
+                        initCalendar(elementId, currentUserCode);
+                    }
+                } else if (isMine) {
+                    const confirmCancel = confirm(
+                        `🟢 SİZİN RANDEVUNUZ:\n\n` +
+                        `Tarih: ${app.date}\n` +
+                        `Saat: ${app.time}\n` +
+                        `Hizmet: ${app.service}\n\n` +
+                        `Randevunuzu iptal etmek istiyor musunuz?`
+                    );
+                    if (confirmCancel) {
+                        await deleteAppointment(app.id);
+                        initCalendar(elementId, currentUserCode);
+                    }
+                } else {
+                    alert("🔒 Bu randevu doludur.");
+                }
+            }
+        });
+        calendar.render();
+    }
+}
+
+async function deleteAppointment(id) {
+    try {
+        await deleteDoc(doc(db, "appointments", id));
+        alert("✅ Randevu başarıyla iptal edildi.");
+    } catch (e) {
+        console.error("Hata (deleteAppointment):", e);
+    }
+}
+
+window.handleBookingSubmit = async function(event) {
+    event.preventDefault();
+
+    const currentCode = localStorage.getItem("currentPortalUser") || "";
+    const name = document.getElementById("clientName").value.trim();
+    const email = document.getElementById("clientEmail").value.trim();
+    const phone = document.getElementById("clientPhone").value.trim();
+    const date = document.getElementById("selectedDate").value;
+    const time = document.getElementById("selectedTime").value;
+    const service = document.getElementById("serviceType").value;
+
+    const appointments = await getAppointments();
+    const isConflict = appointments.some(app => app.date === date && app.time === time && app.status === 'approved');
+
+    if (isConflict) {
+        alert("⚠️ Bu randevu doludur. Lütfen başka bir saat veya tarih seçiniz.");
+        return;
+    }
+
+    const newAppointment = {
+        clientCode: currentCode,
+        name,
+        email,
+        phone,
+        date,
+        time,
+        service,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+    };
+
+    try {
+        await addDoc(collection(db, "appointments"), newAppointment);
+
+        const mailSubject = encodeURIComponent(`Yeni Randevu Talebi: ${name}`);
+        const mailBody = encodeURIComponent(
+            `Merhaba Derya Hanım,\n\nYeni bir randevu talebi oluşturuldu:\n\n` +
+            `Danışan: ${name}\n` +
+            `E-Posta: ${email}\n` +
+            `Telefon: ${phone}\n` +
+            `Tarih: ${date}\n` +
+            `Saat: ${time}\n` +
+            `Hizmet: ${service}\n\n` +
+            `Talebi onaylamak için Yönetim Paneline giriş yapabilirsiniz.`
+        );
+
+        window.location.href = `mailto:goldensunderya@hotmail.com?subject=${mailSubject}&body=${mailBody}`;
+
+        alert("✅ Randevu talebiniz başarıyla alındı! Derya Hanım onayladıktan sonra randevunuz takvimde kesinleşecektir.");
+        document.getElementById("appointmentForm").reset();
+        
+        initCalendar('clientCalendar', currentCode);
+    } catch (e) {
+        console.error("Hata (handleBookingSubmit):", e);
+        alert("⚠️ Bir hata oluştu. Lütfen tekrar deneyiniz.");
+    }
+};
+
+/* ==========================================
+   4. PORTAL LOGIN SYSTEM
+   ========================================== */
+window.handlePortalLogin = async function(event) {
+    if (event) event.preventDefault();
+
+    const input = document.getElementById('accessCode');
+    const errorMsg = document.getElementById('loginError');
+    const loginSection = document.getElementById('loginSection');
+    const masterDashboard = document.getElementById('masterDashboard');
+    const clientDashboard = document.getElementById('clientDashboard');
+
+    if (!input) return;
+    const code = input.value.trim();
+
+    if (!code) {
+        if (errorMsg) {
+            errorMsg.innerText = "Lütfen bir kod giriniz.";
+            errorMsg.style.display = "block";
+        }
+        return;
+    }
+
+    localStorage.setItem("currentPortalUser", code.toLowerCase());
+
+    // Master-Login
+    if (code.toLowerCase() === 'master' || code.toUpperCase() === '28SENDK29') {
+        if (loginSection) loginSection.style.display = 'none';
+        if (masterDashboard) masterDashboard.style.display = 'block';
+        if (clientDashboard) clientDashboard.style.display = 'none';
+        if (errorMsg) errorMsg.style.display = 'none';
+        
+        loadMasterDashboard();
+        return;
+    }
+
+    // Klienten-Login über Firestore
+    try {
+        const docRef = doc(db, "clients", code.toUpperCase());
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+            if (loginSection) loginSection.style.display = 'none';
+            if (masterDashboard) masterDashboard.style.display = 'none';
+            if (clientDashboard) clientDashboard.style.display = 'block';
+            if (errorMsg) errorMsg.style.display = 'none';
+
+            loadClientDashboard(code.toUpperCase());
+        } else {
+            if (errorMsg) {
+                errorMsg.innerText = "❌ Geçersiz giriş kodu! Lütfen geçerli bir kod giriniz.";
+                errorMsg.style.display = 'block';
+            }
+        }
+    } catch (e) {
+        console.error("Hata (handlePortalLogin):", e);
+    }
+};
+
+/* ==========================================
+   5. MASTER DASHBOARD
+   ========================================== */
+function loadMasterDashboard() {
+    renderPendingAppointments();
+    initCalendar('masterCalendar', '28SENDK29');
+    populateClientSelect();
+    renderMasterComments();
+}
+
+async function renderPendingAppointments() {
+    const listEl = document.getElementById("pendingAppointmentsList");
+    if (!listEl) return;
+
+    const appointments = (await getAppointments()).filter(app => app.status === 'pending');
+
+    if (appointments.length === 0) {
+        listEl.innerHTML = "<p class='no-data'>Bekleyen randevu talebi bulunmuyor.</p>";
+        return;
+    }
+
+    listEl.innerHTML = appointments.map(app => `
+        <div class="pending-item" style="padding: 12px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+            <div class="pending-info">
+                <strong>${app.name}</strong> (${app.service})<br>
+                📅 ${app.date} - ⏰ ${app.time}<br>
+                📞 ${app.phone} | ✉️ ${app.email}
+            </div>
+            <div class="pending-actions">
+                <button onclick="approveAppointment('${app.id}')" class="btn-approve" style="background:#27ae60; color:#fff; border:none; padding: 6px 12px; border-radius:4px; cursor:pointer; margin-right: 5px;">Onayla</button>
+                <button onclick="rejectAppointment('${app.id}')" class="btn-reject" style="background:#c0392b; color:#fff; border:none; padding: 6px 12px; border-radius:4px; cursor:pointer;">Reddet</button>
+            </div>
+        </div>
+    `).join("");
+}
+
+window.approveAppointment = async function(id) {
+    try {
+        const appointments = await getAppointments();
+        const appToApprove = appointments.find(a => a.id === id);
+
+        if (!appToApprove) return;
+
+        const hasConflict = appointments.some(app => 
+            app.id !== id && 
+            app.date === appToApprove.date && 
+            app.time === appToApprove.time && 
+            app.status === 'approved'
+        );
+
+        if (hasConflict) {
+            alert(`⚠️ Dikkat! ${appToApprove.date} tarihinde ve saat ${appToApprove.time} için zaten onaylanmış başka bir randevu var.`);
+            return;
+        }
+
+        await updateDoc(doc(db, "appointments", id), { status: 'approved' });
+        renderPendingAppointments();
+        initCalendar('masterCalendar', '28SENDK29');
+        alert("✅ Randevu onaylandı.");
+    } catch (e) {
+        console.error("Hata (approveAppointment):", e);
+    }
+};
+
+window.rejectAppointment = async function(id) {
+    await deleteAppointment(id);
+    renderPendingAppointments();
+};
+
+window.addNewClient = async function(e) {
+    e.preventDefault();
+    const code = document.getElementById("newClientCode").value.trim().toUpperCase();
+    const name = document.getElementById("newClientName").value.trim();
+
+    if (!code || !name) return;
+
+    try {
+        await setDoc(doc(db, "clients", code), {
+            code,
+            name,
+            homework: "Henüz tanımlanmış ödeviniz bulunmuyor.",
+            homeworkDate: null,
+            payment: "0 €",
+            privateNotes: ""
+        });
+
+        alert(`✅ Yeni Danışan Eklendi! Kod: ${code}`);
+        document.getElementById("newClientCode").value = "";
+        document.getElementById("newClientName").value = "";
+        populateClientSelect();
+    } catch (e) {
+        console.error("Hata (addNewClient):", e);
+    }
+};
+
+window.deleteClientAccount = async function() {
+    const select = document.getElementById("clientSelect");
+    const code = select.value;
+
+    if (!code) return;
+
+    if (confirm(`⚠️ ${code} kodlu danışan hesabını silmek istediğinize emin misiniz?`)) {
+        try {
+            await deleteDoc(doc(db, "clients", code));
+            alert("✅ Danışan hesabı başarıyla silindi.");
+            populateClientSelect();
+        } catch (e) {
+            console.error("Hata (deleteClientAccount):", e);
+        }
+    }
+};
+
+async function populateClientSelect() {
+    const select = document.getElementById("clientSelect");
+    if (!select) return;
+
+    try {
+        const querySnapshot = await getDocs(collection(db, "clients"));
+        if (querySnapshot.empty) {
+            select.innerHTML = "<option value=''>Kayıtlı Danışan Yok</option>";
+            return;
+        }
+
+        select.innerHTML = querySnapshot.docs.map(docSnap => {
+            const data = docSnap.data();
+            return `<option value="${docSnap.id}">${data.name} (${docSnap.id})</option>`;
+        }).join("");
+
+        loadClientData();
+    } catch (e) {
+        console.error("Hata (populateClientSelect):", e);
+    }
+}
+
+window.loadClientData = async function() {
+    const select = document.getElementById("clientSelect");
+    const code = select?.value;
+    if (!code) return;
+
+    try {
+        const docSnap = await getDoc(doc(db, "clients", code));
+        if (docSnap.exists()) {
+            const client = docSnap.data();
+            const hw = document.getElementById("clientHomework");
+            const pay = document.getElementById("clientPayment");
+            const notes = document.getElementById("clientPrivateNotes");
+
+            if (hw) hw.value = client.homework || "";
+            if (pay) pay.value = client.payment || "";
+            if (notes) notes.value = client.privateNotes || "";
+        }
+    } catch (e) {
+        console.error("Hata (loadClientData):", e);
+    }
+};
+
+window.saveClientData = async function() {
+    const select = document.getElementById("clientSelect");
+    const code = select?.value;
+    if (!code) return;
+
+    const hw = document.getElementById("clientHomework");
+    const pay = document.getElementById("clientPayment");
+    const notes = document.getElementById("clientPrivateNotes");
+
+    try {
+        await updateDoc(doc(db, "clients", code), {
+            homework: hw ? hw.value : "",
+            homeworkDate: new Date().toISOString(),
+            payment: pay ? pay.value : "",
+            privateNotes: notes ? notes.value : ""
+        });
+        alert("✅ Danışan bilgileri güncellendi!");
+    } catch (e) {
+        console.error("Hata (saveClientData):", e);
+    }
+};
+
+/* ==========================================
+   6. CLIENT DASHBOARD LOGIK
+   ========================================== */
+async function loadClientDashboard(code) {
+    await cleanExpiredHomework();
+
+    const welcomeTitle = document.getElementById("clientWelcomeTitle");
+    const homeworkEl = document.getElementById("displayHomework");
+    const paymentEl = document.getElementById("displayPayment");
+    const nameInput = document.getElementById("clientName");
+
+    try {
+        const docSnap = await getDoc(doc(db, "clients", code));
+        if (docSnap.exists()) {
+            const client = docSnap.data();
+            if (welcomeTitle) welcomeTitle.innerText = `Hoş Geldiniz, ${client.name}`;
+            if (homeworkEl) homeworkEl.innerText = client.homework || "Henüz tanımlanmış ödeviniz bulunmuyor.";
+            if (paymentEl) paymentEl.innerText = client.payment || "0 €";
+            if (nameInput) nameInput.value = client.name;
+        } else {
+            if (welcomeTitle) welcomeTitle.innerText = `Hoş Geldiniz (${code})`;
+        }
+    } catch (e) {
+        console.error("Hata (loadClientDashboard):", e);
+    }
+
+    initCalendar('clientCalendar', code);
+}
+
+/* ==========================================
+   7. YORUM YÖNETİMİ
+   ========================================== */
+async function getComments() {
+    try {
+        const q = query(collection(db, "comments"), orderBy("createdAt", "desc"));
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+    } catch (e) {
+        console.error("Hata (getComments):", e);
+        return [];
+    }
+}
+
+async function renderComments() {
+    const grid = document.getElementById("comments-grid");
+    if (!grid) return;
+
+    const comments = await getComments();
+    grid.innerHTML = comments.map(c => `
+        <div class="comment-card">
+            <div class="comment-header">
+                <strong>${escapeHTML(c.name)}</strong>
+                <span class="stars">${"★".repeat(c.stars)}${"☆".repeat(5 - c.stars)}</span>
+            </div>
+            <p>${escapeHTML(c.text)}</p>
+        </div>
+    `).join("");
+}
+
+async function renderMasterComments() {
+    const list = document.getElementById("masterCommentsList");
+    if (!list) return;
+
+    const comments = await getComments();
+    list.innerHTML = comments.map(c => `
+        <div class="master-comment-item" style="padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <strong>${escapeHTML(c.name)}</strong> (${"★".repeat(c.stars)})<br>
+                <small>${escapeHTML(c.text)}</small>
+            </div>
+            <button onclick="deleteComment('${c.id}')" class="btn-delete-comment" style="background:#c0392b; color:#fff; border:none; padding:5px 10px; border-radius:3px; cursor:pointer;"><i class="fas fa-trash"></i> Yorumu Sil</button>
+        </div>
+    `).join("");
+}
+
+window.deleteComment = async function(id) {
+    if (confirm("Bu yorumu silmek istediğinize emin misiniz?")) {
+        try {
+            await deleteDoc(doc(db, "comments", id));
+            renderMasterComments();
+            renderComments();
+            alert("✅ Yorum silindi.");
+        } catch (e) {
+            console.error("Hata (deleteComment):", e);
+        }
+    }
+};
+
+window.addComment = async function(event) {
+    event.preventDefault();
+
+    const nameInput = document.getElementById("commentName");
+    const starsSelect = document.getElementById("commentStars");
+    const textInput = document.getElementById("commentText");
+
+    if (!nameInput || !starsSelect || !textInput) return;
+
+    const name = nameInput.value.trim();
+    const stars = parseInt(starsSelect.value, 10);
+    const text = textInput.value.trim();
+
+    if (!name || !text) {
+        alert("Lütfen adınızı ve yorumunuzu giriniz.");
+        return;
+    }
+
+    try {
+        await addDoc(collection(db, "comments"), {
+            name: name,
+            stars: stars,
+            text: text,
+            createdAt: new Date().toISOString()
+        });
+
+        renderComments();
+        nameInput.value = "";
+        textInput.value = "";
+        starsSelect.value = "5";
+
+        alert("✅ Yorumunuz başarıyla gönderildi ve kaydedildi!");
+    } catch (e) {
+        console.error("Hata (addComment):", e);
+        alert("⚠️ Yorum gönderilirken bir hata oluştu.");
+    }
+};
+
+/* ==========================================
+   8. INTELLIGENTER ASİSTAN CHAT
+   ========================================== */
+window.toggleAsistanChat = function() {
+    const modal = document.getElementById("asistanModal") || document.getElementById("assistantModal");
+    if (!modal) return;
+    modal.style.display = (modal.style.display === "none" || modal.style.display === "") ? "flex" : "none";
+};
+
+window.handleAssistantSubmit = function(event) {
+    event.preventDefault();
+    const input = document.getElementById("asistanMsgInput") || document.getElementById("assistantInput");
+    const chatBox = document.getElementById("asistanChatBody") || document.getElementById("assistantChatBox");
+    
+    if (!input || !chatBox) return;
+
+    const text = input.value.trim();
+    if (!text) return;
+
+    const userDiv = document.createElement("div");
+    userDiv.className = "msg user-msg message";
+    userDiv.style.cssText = "background: #8c6a56; color: white; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px; text-align: right; margin-left: 20px; font-size: 14px;";
+    userDiv.innerText = text;
+    chatBox.appendChild(userDiv);
+
+    input.value = "";
+    chatBox.scrollTop = chatBox.scrollHeight;
+
+    setTimeout(() => {
+        const botReply = generateAssistantReply(text);
+        
+        const botDiv = document.createElement("div");
+        botDiv.className = "msg bot-msg message";
+        botDiv.style.cssText = "background: #e8dfd8; color: #333; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px; font-size: 14px; line-height: 1.4;";
+        botDiv.innerText = botReply;
+        chatBox.appendChild(botDiv);
+
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }, 600);
+};
+
+window.sendAsistanMessage = function(event) {
+    window.handleAssistantSubmit(event);
+};
+
+function generateAssistantReply(query) {
+    const q = query.toLowerCase().trim();
+
+    if (q.includes("çıkama") || q.includes("cikama") || q.includes("kalır mıyım") || q.includes("kalir miyim")) {
+        return "Kesinlikle hayır. Hipnoz derin bir gevşeme halidir ve uyku değildir. İstediğiniz an gözlerinizi açıp hipnozdan çıkabilirsiniz. Hipnozda takılı kalmak gibi bir durum tıbben ve psikolojik olarak mümkün değildir.";
+    }
+    if (q.includes("bilinç") || q.includes("bilinc") || q.includes("kayıp") || q.includes("kayip") || q.includes("kontrol")) {
+        return "Hayır, ne Hipnozda ne de Deep EFT çalışmalarında bilincinizi veya kontrolünüzü kaybetmezsiniz. Tüm süreç boyunca ne konuştuğunuzun farkında olursunuz ve kontrol tamamen sizdedir.";
+    }
+    if (q.includes("sır") || q.includes("sir") || q.includes("istemediğim") || q.includes("istemedigim")) {
+        return "Hipnoz esnasında istemediğiniz hiçbir şeyi söylemezsiniz veya yapmazsınız. Zihniniz ve etik değerleriniz sizi her zaman korur.";
+    }
+    if (q.includes("zarar") || q.includes("yan etki") || q.includes("tehlikeli")) {
+        return "Hipnoz ve Deep EFT tamamen doğal ve güvenli yöntemlerdir. Hiçbir yan etkisi veya tehlikesi yoktur. Sadece derin bir zihinsel ve bedensel rahatlama sağlarsınız.";
+    }
+    if (q.includes("unuttum") || q.includes("kaybettim") || q.includes("şifre") || q.includes("sifre") || q.includes("hatırlamıyorum") || q.includes("hatirlamiyorum")) {
+        return "Giriş kodunuzu unuttuysanız endişelenmeyin! Bize WhatsApp veya Instagram DM üzerinden adınız ve soyadınızla ulaşırsanız, kodunuzu size hemen tekrar iletebiliriz.";
+    }
+    if (q.includes("hipnoz") || q.includes("hypnose")) {
+        return "Hipnoterapi seans ücreti 170 €'dur. Hipnoz, bilinçaltınızdaki olumsuz inançları ve blokajları dönüştürmek için kullanılan son derece etkili ve güvenli bir yöntemdir.";
+    }
+    if (q.includes("eft") || q.includes("deep eft")) {
+        return "Deep EFT seansları saatlik 65 €'dur. Bedenimizdeki enerji meridyenlerine hafif dokunuşlar yaparak geçmiş travmaları ve duygusal yükleri serbest bırakma yöntemidir.";
+    }
+    if (q.includes("ucret") || q.includes("fiyat") || q.includes("preis") || q.includes("kosten") || q.includes("ödeme") || q.includes("odeme") || q.includes("paypal")) {
+        return "Hipnoterapi seans ücreti 170 €'dur. Deep EFT ve diğer seanslar ise saatlik 65 €'dur. Ödemelerinizi Ödeme sayfamız üzerinden PayPal ile gerçekleştirebilirsiniz.";
+    }
+    if (q.includes("kod") || q.includes("giris") || q.includes("giriş") || q.includes("portal")) {
+        return "Danışan portalı giriş kodunuz seansınız onaylandıktan sonra size özel olarak iletilir. Kodunuzu unuttuysanız veya ilk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
+    }
+    if (q.includes("randevu") || q.includes("termin") || q.includes("seans")) {
+        return "Randevu almak için Danışan Portalı üzerinden uygun tarih ve saati seçebilirsiniz. İlk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
+    }
+    if (q.includes("merhaba") || q.includes("selam") || q.includes("hallo")) {
+        return "Merhaba! Derya Kılıç Sanal Asistanına hoş geldiniz. Terapi yöntemleri, randevu süreci veya aklınıza takılan sorular hakkında bana danışabilirsiniz. İlk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
+    }
+    if (q.includes("teşekkür") || q.includes("tesekkur") || q.includes("sağol") || q.includes("danke")) {
+        return "Rica ederim! Aklınıza takılan başka bir soru olursa her zaman buradayım.";
+    }
+
+    return "Size nasıl yardımcı olabilirim? Terapi seansları (Hipnoz/EFT), randevular, giriş kodları ve ücretlerimiz hakkında soru sorabilirsiniz. İlk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
+}
+
+function escapeHTML(str) {
+    if (!str) return "";
+    return str.replace(/[&<>'"]/g, 
+        tag => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            "'": '&#39;',
+            '"': '&quot;'
+        }[tag] || tag)
+    );
+}
+
+/* ==========================================
+   9. LOGOUT FUNKTION
+   ========================================== */
+window.logoutPortal = function() {
+    localStorage.removeItem("currentPortalUser");
+    localStorage.removeItem("portalAccessCode");
+    sessionStorage.removeItem("portalAccessCode");
+    localStorage.removeItem("currentUserRole");
+
+    const masterDash = document.getElementById("masterDashboard");
+    const clientDash = document.getElementById("clientDashboard");
+    const loginSec = document.getElementById("loginSection") || document.getElementById("portalLoginSection");
+
+    if (masterDash) masterDash.style.display = "none";
+    if (clientDash) clientDash.style.display = "none";
+    if (loginSec) loginSec.style.display = "block";
+
+    window.location.href = "index.html";
+};
