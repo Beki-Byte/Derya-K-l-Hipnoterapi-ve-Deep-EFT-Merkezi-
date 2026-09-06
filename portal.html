@@ -33,7 +33,7 @@
                 <p>Erişim kodunuzu girerek takvimi görüntüleyebilir ve randevu alabilirsiniz.</p>
             </div>
             
-            <form id="loginForm" onsubmit="handlePortalLogin(event)">
+            <form id="loginForm" onsubmit="window.handlePortalLogin(event)">
                 <div class="form-group">
                     <label for="accessCode" class="sr-only">Giriş Kodunuz</label>
                     <input type="text" id="accessCode" placeholder="Giriş Kodunuz" required autocomplete="off">
@@ -47,7 +47,7 @@
         <section id="masterDashboard" class="portal-card wide-card" style="display: none;">
             <div class="dashboard-header">
                 <h2><i class="fas fa-sliders-h"></i> Yönetim Paneli (Derya Kılıç)</h2>
-                <button onclick="logoutPortal()" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Çıkış Yap</button>
+                <button onclick="window.logoutPortal()" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Çıkış Yap</button>
             </div>
 
             <div class="dashboard-section">
@@ -66,7 +66,7 @@
                 
                 <div class="add-client-box">
                     <h4>Yeni Danışan Kodu Oluştur</h4>
-                    <form onsubmit="addNewClient(event)" class="inline-form">
+                    <form id="addClientForm" class="inline-form">
                         <input type="text" id="newClientCode" placeholder="Kod (Örn: AHMET2026)" required>
                         <input type="text" id="newClientName" placeholder="Danışan Adı Soyadı" required>
                         <button type="submit" class="btn-submit">Ekle</button>
@@ -77,7 +77,7 @@
                     <h4>Danışan Düzenle & Sil</h4>
                     <div class="form-group">
                         <label for="clientSelect">Danışan Seçin:</label>
-                        <select id="clientSelect" onchange="loadClientData()"></select>
+                        <select id="clientSelect" onchange="window.loadClientData()"></select>
                     </div>
                     
                     <div class="form-group">
@@ -96,8 +96,8 @@
                     </div>
 
                     <div class="action-btns" style="margin-top: 15px;">
-                        <button type="button" onclick="saveClientData()" class="btn-submit">Değişiklikleri Kaydet</button>
-                        <button type="button" onclick="deleteClientAccount()" class="btn-delete-acc"><i class="fas fa-trash-alt"></i> Hesabı Sil</button>
+                        <button type="button" onclick="window.saveClientData()" class="btn-submit">Değişiklikleri Kaydet</button>
+                        <button type="button" onclick="window.deleteClientAccount()" class="btn-delete-acc"><i class="fas fa-trash-alt"></i> Hesabı Sil</button>
                     </div>
                 </div>
             </div>
@@ -112,7 +112,7 @@
         <section id="clientDashboard" class="portal-card wide-card" style="display: none;">
             <div class="dashboard-header">
                 <h2 id="clientWelcomeTitle">Hoş Geldiniz</h2>
-                <button onclick="logoutPortal()" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Çıkış Yap</button>
+                <button onclick="window.logoutPortal()" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Çıkış Yap</button>
             </div>
 
             <!-- Ödeme Bölümü (PayPal) -->
@@ -146,7 +146,7 @@
 
                 <div class="booking-sidebar-card">
                     <h3>Randevu Talebi Oluştur</h3>
-                    <form id="appointmentForm" onsubmit="handleBookingSubmit(event)">
+                    <form id="appointmentForm" onsubmit="window.handleBookingSubmit(event)">
                         <div class="form-group">
                             <label for="clientName">Adınız Soyadınız:</label>
                             <input type="text" id="clientName" placeholder="Örn: Ahmet Yılmaz" required>
