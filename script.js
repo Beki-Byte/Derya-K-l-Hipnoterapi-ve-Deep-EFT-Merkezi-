@@ -1,7 +1,7 @@
 /* ==========================================
    FIREBASE MODULAR IMPORTS & INITIALISIERUNG
    ========================================== */
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { 
     getFirestore, 
     collection, 
@@ -14,7 +14,7 @@ import {
     deleteDoc, 
     query, 
     orderBy 
-} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyBYSifQ5m7G_sdyN0JAkkC8SV6x9gY0-Oo",
@@ -49,6 +49,18 @@ function initCookieBanner() {
 
     if (cookieOverlay) {
         cookieOverlay.style.display = "flex";
+    } else {
+        const banner = document.createElement("div");
+        banner.className = "cookie-overlay-box";
+        banner.id = "cookieBox";
+        banner.innerHTML = `
+            <div style="font-size:24px; margin-bottom:5px;">🍪</div>
+            <p style="margin:0; font-size:0.88rem; color:#444;">
+                Bu web sitesi deneyiminizi geliştirmek ve güvenli bir hizmet sunmak için çerezler kullanmaktadır.
+            </p>
+            <button onclick="acceptCookiesNow()" class="cookie-btn-accept">Kabul Et / Akzeptieren</button>
+        `;
+        document.body.appendChild(banner);
     }
 
     if (acceptBtn) {
@@ -58,12 +70,14 @@ function initCookieBanner() {
 
 window.acceptCookiesNow = function() {
     localStorage.setItem("cookies_accepted", "true");
+    const box = document.getElementById("cookieBox");
+    if (box) box.remove();
     const cookieOverlay = document.getElementById("cookieModalOverlay");
     if (cookieOverlay) cookieOverlay.style.display = "none";
 };
 
 /* ==========================================
-   2. DANIŞAN & ÖDEV TEMİZLİK LOGİĞİ
+   2. DANIŞAN & ÖDEV TEMİZLİK LOGİĞİ (FIREBASE)
    ========================================== */
 async function getAppointments() {
     try {
@@ -286,7 +300,7 @@ window.handlePortalLogin = async function(event) {
 
     localStorage.setItem("currentPortalUser", code.toLowerCase());
 
-    // Master-Login
+    // 1. MASTER-LOGIN (Spezielle Master-Codes für deine Mutter)
     if (code.toLowerCase() === 'master' || code.toUpperCase() === '28SENDK29') {
         if (loginSection) loginSection.style.display = 'none';
         if (masterDashboard) masterDashboard.style.display = 'block';
@@ -297,7 +311,7 @@ window.handlePortalLogin = async function(event) {
         return;
     }
 
-    // Klienten-Login über Firestore
+    // 2. KLIENTEN-LOGIN (Strikte Prüfung in Firestore)
     try {
         const docRef = doc(db, "clients", code.toUpperCase());
         const docSnap = await getDoc(docRef);
@@ -321,7 +335,7 @@ window.handlePortalLogin = async function(event) {
 };
 
 /* ==========================================
-   5. MASTER DASHBOARD
+   5. MASTER DASHBOARD (DERYA KILIÇ)
    ========================================== */
 function loadMasterDashboard() {
     renderPendingAppointments();
@@ -624,6 +638,119 @@ window.addComment = async function(event) {
     }
 };
 
+/* ==========================================
+   8. INTELLIGENTER ASİSTAN CHAT (SMART KI LOGIK)
+   ========================================== */
+window.toggleAsistanChat = function() {
+    const modal = document.getElementById("asistanModal") || document.getElementById("assistantModal");
+    if (!modal) return;
+    if (modal.style.display === "none" || modal.style.display === "") {
+        modal.style.display = "flex";
+    } else {
+        modal.style.display = "none";
+    }
+};
+
+window.handleAssistantSubmit = function(event) {
+    event.preventDefault();
+    const input = document.getElementById("asistanMsgInput") || document.getElementById("assistantInput");
+    const chatBox = document.getElementById("asistanChatBody") || document.getElementById("assistantChatBox");
+    
+    if (!input || !chatBox) return;
+
+    const text = input.value.trim();
+    if (!text) return;
+
+    // Nachricht des Nutzers anzeigen
+    const userDiv = document.createElement("div");
+    userDiv.className = "msg user-msg message";
+    userDiv.style.cssText = "background: #8c6a56; color: white; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px; text-align: right; margin-left: 20px; font-size: 14px;";
+    userDiv.innerText = text;
+    chatBox.appendChild(userDiv);
+
+    input.value = "";
+    chatBox.scrollTop = chatBox.scrollHeight;
+
+    // KI-Antwort generieren und nach kurzer Verzögerung anzeigen
+    setTimeout(() => {
+        const botReply = generateAssistantReply(text);
+        
+        const botDiv = document.createElement("div");
+        botDiv.className = "msg bot-msg message";
+        botDiv.style.cssText = "background: #e8dfd8; color: #333; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px; font-size: 14px; line-height: 1.4;";
+        botDiv.innerText = botReply;
+        chatBox.appendChild(botDiv);
+
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }, 600);
+};
+
+window.sendAsistanMessage = function(event) {
+    handleAssistantSubmit(event);
+};
+
+function generateAssistantReply(query) {
+    const q = query.toLowerCase().trim();
+
+    // A. HYPNOSE & ÄNGSTE
+    if (q.includes("çıkama") || q.includes("cikama") || q.includes("kalır mıyım") || q.includes("kalir miyim")) {
+        return "Kesinlikle hayır. Hipnoz derin bir gevşeme halidir ve uyku değildir. İstediğiniz an gözlerinizi açıp hipnozdan çıkabilirsiniz. Hipnozda takılı kalmak gibi bir durum tıbben ve psikolojik olarak mümkün değildir.";
+    }
+
+    if (q.includes("bilinç") || q.includes("bilinc") || q.includes("kayıp") || q.includes("kayip") || q.includes("kontrol")) {
+        return "Hayır, ne Hipnozda ne de Deep EFT çalışmalarında bilincinizi veya kontrolünüzü kaybetmezsiniz. Tüm süreç boyunca ne konuştuğunuzun farkında olursunuz ve kontrol tamamen sizdedir.";
+    }
+
+    if (q.includes("sır") || q.includes("sir") || q.includes("istemediğim") || q.includes("istemedigim")) {
+        return "Hipnoz esnasında istemediğiniz hiçbir şeyi söylemezsiniz veya yapmazsınız. Zihniniz ve etik değerleriniz sizi her zaman korur.";
+    }
+
+    if (q.includes("zarar") || q.includes("yan etki") || q.includes("tehlikeli")) {
+        return "Hipnoz ve Deep EFT tamamen doğal ve güvenli yöntemlerdir. Hiçbir yan etkisi veya tehlikesi yoktur. Sadece derin bir zihinsel ve bedensel rahatlama sağlarsınız.";
+    }
+
+    // B. CODE VERGESSEN / UNUTTUM (NEU)
+    if (q.includes("unuttum") || q.includes("kaybettim") || q.includes("şifre") || q.includes("sifre") || q.includes("hatırlamıyorum") || q.includes("hatirlamiyorum")) {
+        return "Giriş kodunuzu unuttuysanız endişelenmeyin! Bize WhatsApp veya Instagram DM üzerinden adınız ve soyadınızla ulaşırsanız, kodunuzu size hemen tekrar iletebiliriz.";
+    }
+
+    // C. SEANS & METHODEN
+    if (q.includes("hipnoz") || q.includes("hypnose")) {
+        return "Hipnoterapi seans ücreti 170 €'dur. Hipnoz, bilinçaltınızdaki olumsuz inançları ve blokajları dönüştürmek için kullanılan son derece etkili ve güvenli bir yöntemdir.";
+    }
+
+    if (q.includes("eft") || q.includes("deep eft")) {
+        return "Deep EFT seansları saatlik 65 €'dur. Bedenimizdeki enerji meridyenlerine hafif dokunuşlar yaparak geçmiş travmaları ve duygusal yükleri serbest bırakma yöntemidir.";
+    }
+
+    // D. ÜCRET & ÖDEME
+    if (q.includes("ucret") || q.includes("fiyat") || q.includes("preis") || q.includes("kosten") || q.includes("ödeme") || q.includes("odeme") || q.includes("paypal")) {
+        return "Hipnoterapi seans ücreti 170 €'dur. Deep EFT ve diğer seanslar ise saatlik 65 €'dur. Ödemelerinizi Ödeme sayfamız üzerinden PayPal ile gerçekleştirebilirsiniz.";
+    }
+
+    // E. CODE / PORTAL ALLGEMEIN
+    if (q.includes("kod") || q.includes("giris") || q.includes("giriş") || q.includes("portal")) {
+        return "Danışan portalı giriş kodunuz seansınız onaylandıktan sonra size özel olarak iletilir. Kodunuzu unuttuysanız veya ilk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
+    }
+
+    // F. RANDEVU
+    if (q.includes("randevu") || q.includes("termin") || q.includes("seans")) {
+        return "Randevu almak için Danışan Portalı üzerinden uygun tarih ve saati seçebilirsiniz. İlk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
+    }
+
+    // G. SELAMLAMA / TEŞEKKÜR
+    if (q.includes("merhaba") || q.includes("selam") || q.includes("hallo")) {
+        return "Merhaba! Derya Kılıç Sanal Asistanına hoş geldiniz. Terapi yöntemleri, randevu süreci veya aklınıza takılan sorular hakkında bana danışabilirsiniz. İlk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
+    }
+
+    if (q.includes("teşekkür") || q.includes("tesekkur") || q.includes("sağol") || q.includes("danke")) {
+        return "Rica ederim! Aklınıza takılan başka bir soru olursa her zaman buradayım.";
+    }
+
+    // H. DEFAULT FALLBACK
+    return "Size nasıl yardımcı olabilirim? Terapi seansları (Hipnoz/EFT), randevular, giriş kodları ve ücretlerimiz hakkında soru sorabilirsiniz. İlk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
+}
+
 function escapeHTML(str) {
     if (!str) return "";
     return str.replace(/[&<>'"]/g, 
@@ -638,21 +765,24 @@ function escapeHTML(str) {
 }
 
 /* ==========================================
-   8. LOGOUT FUNKTION
+   LOGOUT FUNKTION (Gilt für Master & Klienten)
    ========================================== */
 window.logoutPortal = function() {
+    // 1. Alle Login-Informationen aus dem Browserspeicher löschen
     localStorage.removeItem("currentPortalUser");
     localStorage.removeItem("portalAccessCode");
     sessionStorage.removeItem("portalAccessCode");
     localStorage.removeItem("currentUserRole");
 
+    // 2. Dashboards im Fenster direkt ausblenden
     const masterDash = document.getElementById("masterDashboard");
     const clientDash = document.getElementById("clientDashboard");
-    const loginSec = document.getElementById("loginSection") || document.getElementById("portalLoginSection");
+    const loginSec = document.getElementById("portalLoginSection") || document.getElementById("loginSection");
 
     if (masterDash) masterDash.style.display = "none";
     if (clientDash) clientDash.style.display = "none";
     if (loginSec) loginSec.style.display = "block";
 
+    // 3. Zur Startseite umleiten
     window.location.href = "index.html";
 };
