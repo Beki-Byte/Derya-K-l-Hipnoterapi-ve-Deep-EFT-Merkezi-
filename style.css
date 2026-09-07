@@ -1187,6 +1187,19 @@ h2 { text-align: center; font-size: 2.2rem; color: var(--primary-color); margin-
         gap: 4px !important;
     }
 
+   /* Hover-Effekte für Social-Media- und E-Mail-Links im Footer */
+.dark-footer .footer-social-link,
+.dark-footer .email-link {
+    color: #ffffff; /* Ausgangsfarbe */
+    transition: color 0.3s ease;
+    text-decoration: none;
+}
+
+.dark-footer .footer-social-link:hover,
+.dark-footer .email-link:hover {
+    color: #cda882 !important; /* Gold/Beige Hover-Farbe wie beim Adress-Link */
+}
+
     .fc .fc-button {
         padding: 4px 8px !important;
         font-size: 12px !important;
