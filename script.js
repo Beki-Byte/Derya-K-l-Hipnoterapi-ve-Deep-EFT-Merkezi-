@@ -26,7 +26,6 @@ const firebaseConfig = {
     measurementId: "G-DE18012D63"
 };
 
-// ABSICHERUNG: Falls Firebase fehlschlägt, stürzt nicht die ganze Website ab!
 let app;
 let db;
 try {
@@ -177,7 +176,7 @@ async function initCalendar(elementId, currentUserCode = null) {
             },
             events: events,
             dateClick: function(info) {
-                const dateInput = document.getElementById('selectedDate');
+                const dateInput = document.getElementById('selectedDate') || document.getElementById('appDate');
                 if (dateInput) dateInput.value = info.dateStr;
             },
             eventClick: async function(info) {
@@ -188,8 +187,8 @@ async function initCalendar(elementId, currentUserCode = null) {
                     const confirmCancel = confirm(
                         `📅 RANDEVU DETAYLARI:\n\n` +
                         `Danışan: ${app.name}\n` +
-                        `Telefon: ${app.phone}\n` +
-                        `E-Posta: ${app.email}\n` +
+                        `Telefon: ${app.phone || '-'}\n` +
+                        `E-Posta: ${app.email || '-'}\n` +
                         `Tarih: ${app.date} Saat: ${app.time}\n` +
                         `Hizmet: ${app.service}\n\n` +
                         `Bu randevuyu iptal etmek / silmek istiyor musunuz?`
@@ -291,6 +290,55 @@ window.handleBookingSubmit = async function(event) {
     }
 };
 
+/* Admin-Formular zum direkten Eintragen von Randevus */
+window.addNewAppointment = async function(event) {
+    event.preventDefault();
+    if (!db) return;
+
+    const clientSelect = document.getElementById("appClientSelect");
+    const date = document.getElementById("appDate").value;
+    const time = document.getElementById("appTime").value;
+    const service = document.getElementById("appServiceType").value;
+
+    if (!clientSelect.value) {
+        alert("Lütfen bir danışan seçiniz.");
+        return;
+    }
+
+    const clientCode = clientSelect.value;
+    const selectedOption = clientSelect.options[clientSelect.selectedIndex];
+    const clientName = selectedOption.text.split(' (')[0];
+
+    const appointments = await getAppointments();
+    const isConflict = appointments.some(app => app.date === date && app.time === time && app.status === 'approved');
+
+    if (isConflict) {
+        alert("⚠️ Bu saatte zaten onaylanmış başka bir randevu var.");
+        return;
+    }
+
+    try {
+        await addDoc(collection(db, "appointments"), {
+            clientCode: clientCode,
+            name: clientName,
+            email: "",
+            phone: "",
+            date: date,
+            time: time,
+            service: service,
+            status: "approved",
+            createdAt: new Date().toISOString()
+        });
+
+        alert("✅ Randevu başarıyla oluşturuldu ve onaylandı!");
+        document.getElementById("adminAddAppointmentForm").reset();
+        initCalendar('masterCalendar', '28SENDK29');
+    } catch (e) {
+        console.error("Hata (addNewAppointment):", e);
+        alert("⚠️ Randevu eklenirken hata oluştu.");
+    }
+};
+
 /* ==========================================
    4. PORTAL LOGIN SYSTEM
    ========================================== */
@@ -316,7 +364,6 @@ window.handlePortalLogin = async function(event) {
 
     localStorage.setItem("currentPortalUser", code.toLowerCase());
 
-    // 1. MASTER-LOGIN (Spezielle Master-Codes für deine Mutter)
     if (code.toLowerCase() === 'master' || code.toUpperCase() === '28SENDK29') {
         if (loginSection) loginSection.style.display = 'none';
         if (masterDashboard) masterDashboard.style.display = 'block';
@@ -327,7 +374,6 @@ window.handlePortalLogin = async function(event) {
         return;
     }
 
-    // 2. KLIENTEN-LOGIN (Strikte Prüfung in Firestore)
     if (!db) {
         if (errorMsg) {
             errorMsg.innerText = "Verbindung zur Datenbank fehlgeschlagen.";
@@ -449,17 +495,15 @@ window.addNewClient = async function(e) {
     }
 
     try {
-        // 1. DANIŞAN-KODU PRÜFUNG: Existiert der Code bereits?
         const clientRef = doc(db, "clients", code);
         const clientSnap = await getDoc(clientRef);
 
         if (clientSnap.exists()) {
             const existingClient = clientSnap.data();
             alert(`⚠️ UYARI: Bu giriş kodu zaten kullanılıyor!\n\nKod: ${code}\nAit Olduğu Danışan: ${existingClient.name}\n\nLütfen farklı bir kod belirleyiniz.`);
-            return; // Bricht ab, damit nichts überschrieben wird!
+            return;
         }
 
-        // 2. Speichern, falls der Code neu und frei ist
         await setDoc(clientRef, {
             code,
             name,
@@ -500,21 +544,30 @@ window.deleteClientAccount = async function() {
 
 async function populateClientSelect() {
     const select = document.getElementById("clientSelect");
-    if (!select || !db) return;
+    const appClientSelect = document.getElementById("appClientSelect");
+    if (!db) return;
 
     try {
         const querySnapshot = await getDocs(collection(db, "clients"));
         if (querySnapshot.empty) {
-            select.innerHTML = "<option value=''>Kayıtlı Danışan Yok</option>";
+            if (select) select.innerHTML = "<option value=''>Kayıtlı Danışan Yok</option>";
+            if (appClientSelect) appClientSelect.innerHTML = "<option value=''>Kayıtlı Danışan Yok</option>";
             return;
         }
 
-        select.innerHTML = querySnapshot.docs.map(docSnap => {
+        const optionsHTML = querySnapshot.docs.map(docSnap => {
             const data = docSnap.data();
             return `<option value="${docSnap.id}">${data.name} (${docSnap.id})</option>`;
         }).join("");
 
-        loadClientData();
+        if (select) {
+            select.innerHTML = optionsHTML;
+            loadClientData();
+        }
+
+        if (appClientSelect) {
+            appClientSelect.innerHTML = `<option value="">Lütfen Danışan Seçin</option>` + optionsHTML;
+        }
     } catch (e) {
         console.error("Hata (populateClientSelect):", e);
     }
@@ -721,7 +774,6 @@ window.handleAssistantSubmit = function(event) {
     const text = input.value.trim();
     if (!text) return;
 
-    // Nachricht des Nutzers anzeigen
     const userDiv = document.createElement("div");
     userDiv.className = "msg user-msg message";
     userDiv.style.cssText = "background: #8c6a56; color: white; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px; text-align: right; margin-left: 20px; font-size: 14px;";
@@ -731,7 +783,6 @@ window.handleAssistantSubmit = function(event) {
     input.value = "";
     chatBox.scrollTop = chatBox.scrollHeight;
 
-    // KI-Antwort generieren und nach kurzer Verzögerung anzeigen
     setTimeout(() => {
         const botReply = generateAssistantReply(text);
         
@@ -752,7 +803,6 @@ window.sendAsistanMessage = function(event) {
 function generateAssistantReply(query) {
     const q = query.toLowerCase().trim();
 
-    // A. HYPNOSE & ÄNGSTE
     if (q.includes("çıkama") || q.includes("cikama") || q.includes("kalır mıyım") || q.includes("kalir miyim")) {
         return "Kesinlikle hayır. Hipnoz derin bir gevşeme halidir ve uyku değildir. İstediğiniz an gözlerinizi açıp hipnozdan çıkabilirsiniz. Hipnozda takılı kalmak gibi bir durum tıbben ve psikolojik olarak mümkün değildir.";
     }
@@ -769,12 +819,10 @@ function generateAssistantReply(query) {
         return "Hipnoz ve Deep EFT tamamen doğal ve güvenli yöntemlerdir. Hiçbir yan etkisi veya tehlikesi yoktur. Sadece derin bir zihinsel ve bedensel rahatlama sağlarsınız.";
     }
 
-    // B. CODE VERGESSEN / UNUTTUM
     if (q.includes("unuttum") || q.includes("kaybettim") || q.includes("şifre") || q.includes("sifre") || q.includes("hatırlamıyorum") || q.includes("hatirlamiyorum")) {
         return "Giriş kodunuzu unuttuysanız endişelenmeyin! Bize WhatsApp veya Instagram DM üzerinden adınız ve soyadınızla ulaşırsanız, kodunuzu size hemen tekrar iletebiliriz.";
     }
 
-    // C. SEANS & METHODEN
     if (q.includes("hipnoz") || q.includes("hypnose")) {
         return "Hipnoterapi seans ücreti 170 €'dur. Hipnoz, bilinçaltınızdaki olumsuz inançları ve blokajları dönüştürmek için kullanılan son derece etkili ve güvenli bir yöntemdir.";
     }
@@ -783,22 +831,18 @@ function generateAssistantReply(query) {
         return "Deep EFT seansları saatlik 65 €'dur. Bedenimizdeki enerji meridyenlerine hafif dokunuşlar yaparak geçmiş travmaları ve duygusal yükleri serbest bırakma yöntemidir.";
     }
 
-    // D. ÜCRET & ÖDEME
     if (q.includes("ucret") || q.includes("fiyat") || q.includes("preis") || q.includes("kosten") || q.includes("ödeme") || q.includes("odeme") || q.includes("paypal")) {
         return "Hipnoterapi seans ücreti 170 €'dur. Deep EFT ve diğer seanslar ise saatlik 65 €'dur. Ödemelerinizi Ödeme sayfamız üzerinden PayPal ile gerçekleştirebilirsiniz.";
     }
 
-    // E. CODE / PORTAL ALLGEMEIN
     if (q.includes("kod") || q.includes("giris") || q.includes("giriş") || q.includes("portal")) {
         return "Danışan portalı giriş kodunuz seansınız onaylandıktan sonra size özel olarak iletilir. Kodunuzu unuttuysanız veya ilk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
     }
 
-    // F. RANDEVU
     if (q.includes("randevu") || q.includes("termin") || q.includes("seans")) {
         return "Randevu almak için Danışan Portalı üzerinden uygun tarih ve saati seçebilirsiniz. İlk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
     }
 
-    // G. SELAMLAMA / TEŞEKKÜR
     if (q.includes("merhaba") || q.includes("selam") || q.includes("hallo")) {
         return "Merhaba! Derya Kılıç Sanal Asistanına hoş geldiniz. Terapi yöntemleri, randevu süreci veya aklınıza takılan sorular hakkında bana danışabilirsiniz. İlk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
     }
@@ -807,7 +851,6 @@ function generateAssistantReply(query) {
         return "Rica ederim! Aklınıza takılan başka bir soru olursa her zaman buradayım.";
     }
 
-    // H. DEFAULT FALLBACK
     return "Size nasıl yardımcı olabilirim? Terapi seansları (Hipnoz/EFT), randevular, giriş kodları ve ücretlerimiz hakkında soru sorabilirsiniz. İlk defa randevu alıyorsanız bize WhatsApp veya DM üzeri ulaşabilirsiniz.";
 }
 
@@ -828,13 +871,11 @@ function escapeHTML(str) {
    LOGOUT FUNKTION (Gilt für Master & Klienten)
    ========================================== */
 window.logoutPortal = function() {
-    // 1. Alle Login-Informationen aus dem Browserspeicher löschen
     localStorage.removeItem("currentPortalUser");
     localStorage.removeItem("portalAccessCode");
     sessionStorage.removeItem("portalAccessCode");
     localStorage.removeItem("currentUserRole");
 
-    // 2. Dashboards im Fenster direkt ausblenden
     const masterDash = document.getElementById("masterDashboard");
     const clientDash = document.getElementById("clientDashboard");
     const loginSec = document.getElementById("portalLoginSection") || document.getElementById("loginSection");
@@ -843,6 +884,5 @@ window.logoutPortal = function() {
     if (clientDash) clientDash.style.display = "none";
     if (loginSec) loginSec.style.display = "block";
 
-    // 3. Zur Startseite umleiten
     window.location.href = "index.html";
 };
