@@ -745,7 +745,7 @@ function generateAssistantReply(query) {
         return "Hipnoz ve Deep EFT tamamen doğal ve güvenli yöntemlerdir. Hiçbir yan etkisi veya tehlikesi yoktur. Sadece derin bir zihinsel ve bedensel rahatlama sağlarsınız.";
     }
 
-    // B. CODE VERGESSEN / UNUTTUM (NEU)
+    // B. CODE VERGESSEN / UNUTTUM
     if (q.includes("unuttum") || q.includes("kaybettim") || q.includes("şifre") || q.includes("sifre") || q.includes("hatırlamıyorum") || q.includes("hatirlamiyorum")) {
         return "Giriş kodunuzu unuttuysanız endişelenmeyin! Bize WhatsApp veya Instagram DM üzerinden adınız ve soyadınızla ulaşırsanız, kodunuzu size hemen tekrar iletebiliriz.";
     }
