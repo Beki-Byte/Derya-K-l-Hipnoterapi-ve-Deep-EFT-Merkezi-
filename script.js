@@ -26,15 +26,24 @@ const firebaseConfig = {
     measurementId: "G-DE18012D63"
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+// ABSICHERUNG: Falls Firebase fehlschlägt, stürzt nicht die ganze Website ab!
+let app;
+let db;
+try {
+    app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+} catch (e) {
+    console.error("Firebase Initialisierungsfehler:", e);
+}
 
 /* ==========================================
    1. INITIALISIERUNG & COOKIE BANNER
    ========================================== */
 document.addEventListener("DOMContentLoaded", () => {
-    renderComments();
-    cleanExpiredHomework();
+    if (db) {
+        renderComments();
+        cleanExpiredHomework();
+    }
     initCookieBanner();
 });
 
@@ -80,6 +89,7 @@ window.acceptCookiesNow = function() {
    2. DANIŞAN & ÖDEV TEMİZLİK LOGİĞİ (FIREBASE)
    ========================================== */
 async function getAppointments() {
+    if (!db) return [];
     try {
         const querySnapshot = await getDocs(collection(db, "appointments"));
         return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
@@ -90,6 +100,7 @@ async function getAppointments() {
 }
 
 async function cleanExpiredHomework() {
+    if (!db) return;
     try {
         const clientsSnap = await getDocs(collection(db, "clients"));
         const appointments = await getAppointments();
@@ -209,6 +220,7 @@ async function initCalendar(elementId, currentUserCode = null) {
 }
 
 async function deleteAppointment(id) {
+    if (!db) return;
     try {
         await deleteDoc(doc(db, "appointments", id));
         alert("✅ Randevu başarıyla iptal edildi.");
@@ -219,6 +231,10 @@ async function deleteAppointment(id) {
 
 window.handleBookingSubmit = async function(event) {
     event.preventDefault();
+    if (!db) {
+        alert("Datenbank ist nicht verfügbar.");
+        return;
+    }
 
     const currentCode = localStorage.getItem("currentPortalUser") || "";
     const name = document.getElementById("clientName").value.trim();
@@ -312,6 +328,14 @@ window.handlePortalLogin = async function(event) {
     }
 
     // 2. KLIENTEN-LOGIN (Strikte Prüfung in Firestore)
+    if (!db) {
+        if (errorMsg) {
+            errorMsg.innerText = "Verbindung zur Datenbank fehlgeschlagen.";
+            errorMsg.style.display = 'block';
+        }
+        return;
+    }
+
     try {
         const docRef = doc(db, "clients", code.toUpperCase());
         const docSnap = await getDoc(docRef);
@@ -371,6 +395,7 @@ async function renderPendingAppointments() {
 }
 
 window.approveAppointment = async function(id) {
+    if (!db) return;
     try {
         const appointments = await getAppointments();
         const appToApprove = appointments.find(a => a.id === id);
@@ -405,6 +430,8 @@ window.rejectAppointment = async function(id) {
 
 window.addNewClient = async function(e) {
     e.preventDefault();
+    if (!db) return;
+
     const code = document.getElementById("newClientCode").value.trim().toUpperCase();
     const name = document.getElementById("newClientName").value.trim();
 
@@ -430,8 +457,9 @@ window.addNewClient = async function(e) {
 };
 
 window.deleteClientAccount = async function() {
+    if (!db) return;
     const select = document.getElementById("clientSelect");
-    const code = select.value;
+    const code = select?.value;
 
     if (!code) return;
 
@@ -448,7 +476,7 @@ window.deleteClientAccount = async function() {
 
 async function populateClientSelect() {
     const select = document.getElementById("clientSelect");
-    if (!select) return;
+    if (!select || !db) return;
 
     try {
         const querySnapshot = await getDocs(collection(db, "clients"));
@@ -471,7 +499,7 @@ async function populateClientSelect() {
 window.loadClientData = async function() {
     const select = document.getElementById("clientSelect");
     const code = select?.value;
-    if (!code) return;
+    if (!code || !db) return;
 
     try {
         const docSnap = await getDoc(doc(db, "clients", code));
@@ -493,7 +521,7 @@ window.loadClientData = async function() {
 window.saveClientData = async function() {
     const select = document.getElementById("clientSelect");
     const code = select?.value;
-    if (!code) return;
+    if (!code || !db) return;
 
     const hw = document.getElementById("clientHomework");
     const pay = document.getElementById("clientPayment");
@@ -523,19 +551,21 @@ async function loadClientDashboard(code) {
     const paymentEl = document.getElementById("displayPayment");
     const nameInput = document.getElementById("clientName");
 
-    try {
-        const docSnap = await getDoc(doc(db, "clients", code));
-        if (docSnap.exists()) {
-            const client = docSnap.data();
-            if (welcomeTitle) welcomeTitle.innerText = `Hoş Geldiniz, ${client.name}`;
-            if (homeworkEl) homeworkEl.innerText = client.homework || "Henüz tanımlanmış ödeviniz bulunmuyor.";
-            if (paymentEl) paymentEl.innerText = client.payment || "0 €";
-            if (nameInput) nameInput.value = client.name;
-        } else {
-            if (welcomeTitle) welcomeTitle.innerText = `Hoş Geldiniz (${code})`;
+    if (db) {
+        try {
+            const docSnap = await getDoc(doc(db, "clients", code));
+            if (docSnap.exists()) {
+                const client = docSnap.data();
+                if (welcomeTitle) welcomeTitle.innerText = `Hoş Geldiniz, ${client.name}`;
+                if (homeworkEl) homeworkEl.innerText = client.homework || "Henüz tanımlanmış ödeviniz bulunmuyor.";
+                if (paymentEl) paymentEl.innerText = client.payment || "0 €";
+                if (nameInput) nameInput.value = client.name;
+            } else {
+                if (welcomeTitle) welcomeTitle.innerText = `Hoş Geldiniz (${code})`;
+            }
+        } catch (e) {
+            console.error("Hata (loadClientDashboard):", e);
         }
-    } catch (e) {
-        console.error("Hata (loadClientDashboard):", e);
     }
 
     initCalendar('clientCalendar', code);
@@ -545,6 +575,7 @@ async function loadClientDashboard(code) {
    7. YORUM YÖNETİMİ
    ========================================== */
 async function getComments() {
+    if (!db) return [];
     try {
         const q = query(collection(db, "comments"), orderBy("createdAt", "desc"));
         const querySnapshot = await getDocs(q);
@@ -588,6 +619,7 @@ async function renderMasterComments() {
 }
 
 window.deleteComment = async function(id) {
+    if (!db) return;
     if (confirm("Bu yorumu silmek istediğinize emin misiniz?")) {
         try {
             await deleteDoc(doc(db, "comments", id));
@@ -602,6 +634,10 @@ window.deleteComment = async function(id) {
 
 window.addComment = async function(event) {
     event.preventDefault();
+    if (!db) {
+        alert("Veritabanı bağlantısı henüz kurulamadı.");
+        return;
+    }
 
     const nameInput = document.getElementById("commentName");
     const starsSelect = document.getElementById("commentStars");
