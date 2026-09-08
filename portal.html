@@ -33,7 +33,7 @@
                 <p>Erişim kodunuzu girerek takvimi görüntüleyebilir ve randevu alabilirsiniz.</p>
             </div>
             
-            <form id="loginForm" onsubmit="window.handlePortalLogin(event)">
+            <form id="loginForm" onsubmit="handlePortalLogin(event)">
                 <div class="form-group">
                     <label for="accessCode" class="sr-only">Giriş Kodunuz</label>
                     <input type="text" id="accessCode" placeholder="Giriş Kodunuz" required autocomplete="off">
@@ -47,7 +47,7 @@
         <section id="masterDashboard" class="portal-card wide-card" style="display: none;">
             <div class="dashboard-header">
                 <h2><i class="fas fa-sliders-h"></i> Yönetim Paneli (Derya Kılıç)</h2>
-                <button onclick="window.logoutPortal()" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Çıkış Yap</button>
+                <button onclick="logoutPortal()" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Çıkış Yap</button>
             </div>
 
             <div class="dashboard-section">
@@ -66,7 +66,7 @@
                 
                 <div class="add-client-box">
                     <h4>Yeni Danışan Kodu Oluştur</h4>
-                    <form id="addClientForm" class="inline-form">
+                    <form onsubmit="addNewClient(event)" class="inline-form">
                         <input type="text" id="newClientCode" placeholder="Kod (Örn: AHMET2026)" required>
                         <input type="text" id="newClientName" placeholder="Danışan Adı Soyadı" required>
                         <button type="submit" class="btn-submit">Ekle</button>
@@ -77,7 +77,7 @@
                     <h4>Danışan Düzenle & Sil</h4>
                     <div class="form-group">
                         <label for="clientSelect">Danışan Seçin:</label>
-                        <select id="clientSelect" onchange="window.loadClientData()"></select>
+                        <select id="clientSelect" onchange="loadClientData()"></select>
                     </div>
                     
                     <div class="form-group">
@@ -96,8 +96,8 @@
                     </div>
 
                     <div class="action-btns" style="margin-top: 15px;">
-                        <button type="button" onclick="window.saveClientData()" class="btn-submit">Değişiklikleri Kaydet</button>
-                        <button type="button" onclick="window.deleteClientAccount()" class="btn-delete-acc"><i class="fas fa-trash-alt"></i> Hesabı Sil</button>
+                        <button type="button" onclick="saveClientData()" class="btn-submit">Değişiklikleri Kaydet</button>
+                        <button type="button" onclick="deleteClientAccount()" class="btn-delete-acc"><i class="fas fa-trash-alt"></i> Hesabı Sil</button>
                     </div>
                 </div>
             </div>
@@ -112,10 +112,9 @@
         <section id="clientDashboard" class="portal-card wide-card" style="display: none;">
             <div class="dashboard-header">
                 <h2 id="clientWelcomeTitle">Hoş Geldiniz</h2>
-                <button onclick="window.logoutPortal()" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Çıkış Yap</button>
+                <button onclick="logoutPortal()" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Çıkış Yap</button>
             </div>
 
-            <!-- Ödeme Bölümü (PayPal) -->
             <div class="payment-section-box">
                 <h3><i class="fab fa-paypal"></i> Ödeme İşlemleri</h3>
                 <p>Güvenli ödeme yapmak için aşağıdaki butonu kullanabilirsiniz:</p>
@@ -146,7 +145,7 @@
 
                 <div class="booking-sidebar-card">
                     <h3>Randevu Talebi Oluştur</h3>
-                    <form id="appointmentForm" onsubmit="window.handleBookingSubmit(event)">
+                    <form id="appointmentForm" onsubmit="handleBookingSubmit(event)">
                         <div class="form-group">
                             <label for="clientName">Adınız Soyadınız:</label>
                             <input type="text" id="clientName" placeholder="Örn: Ahmet Yılmaz" required>
@@ -188,7 +187,7 @@
 
     </main>
 
-    <!-- Google Translate Initialization -->
+    <!-- Google Translate Script -->
     <script type="text/javascript">
         function googleTranslateElementInit() {
             new google.translate.TranslateElement({
@@ -200,11 +199,30 @@
     </script>
     <script type="text/javascript" src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 
-    <!-- FullCalendar Library -->
+    <!-- FullCalendar Bibliotheken -->
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales/tr.js"></script>
 
-    <!-- App Logic & Firebase Integration -->
+    <!-- Firebase SDK Setup -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-analytics.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBYSifQ5m7G_sdyN0JAkkC8SV6x9gY0-Oo",
+            authDomain: "derya-kilic-website.firebaseapp.com",
+            projectId: "derya-kilic-website",
+            storageBucket: "derya-kilic-website.firebasestorage.app",
+            messagingSenderId: "493728541181",
+            appId: "1:493728541181:web:d361a4ca1c8dff5ed65194",
+            measurementId: "G-DE18012D63"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+    </script>
+
+    <!-- Hauptskript -->
     <script type="module" src="script.js"></script>
 </body>
 </html>
