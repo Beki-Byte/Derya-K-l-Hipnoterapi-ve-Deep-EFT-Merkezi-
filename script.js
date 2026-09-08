@@ -429,16 +429,38 @@ window.rejectAppointment = async function(id) {
 };
 
 window.addNewClient = async function(e) {
-    e.preventDefault();
-    if (!db) return;
+    if (e) e.preventDefault();
+    if (!db) {
+        alert("⚠️ Veritabanı bağlantısı henüz kurulamadı!");
+        return;
+    }
 
-    const code = document.getElementById("newClientCode").value.trim().toUpperCase();
-    const name = document.getElementById("newClientName").value.trim();
+    const codeInput = document.getElementById("newClientCode");
+    const nameInput = document.getElementById("newClientName");
 
-    if (!code || !name) return;
+    if (!codeInput || !nameInput) return;
+
+    const code = codeInput.value.trim().toUpperCase();
+    const name = nameInput.value.trim();
+
+    if (!code || !name) {
+        alert("⚠️ Lütfen hem kod hem de isim alanını doldurunuz.");
+        return;
+    }
 
     try {
-        await setDoc(doc(db, "clients", code), {
+        // 1. DANIŞAN-KODU PRÜFUNG: Existiert der Code bereits?
+        const clientRef = doc(db, "clients", code);
+        const clientSnap = await getDoc(clientRef);
+
+        if (clientSnap.exists()) {
+            const existingClient = clientSnap.data();
+            alert(`⚠️ UYARI: Bu giriş kodu zaten kullanılıyor!\n\nKod: ${code}\nAit Olduğu Danışan: ${existingClient.name}\n\nLütfen farklı bir kod belirleyiniz.`);
+            return; // Bricht ab, damit nichts überschrieben wird!
+        }
+
+        // 2. Speichern, falls der Code neu und frei ist
+        await setDoc(clientRef, {
             code,
             name,
             homework: "Henüz tanımlanmış ödeviniz bulunmuyor.",
@@ -447,12 +469,14 @@ window.addNewClient = async function(e) {
             privateNotes: ""
         });
 
-        alert(`✅ Yeni Danışan Eklendi! Kod: ${code}`);
-        document.getElementById("newClientCode").value = "";
-        document.getElementById("newClientName").value = "";
-        populateClientSelect();
+        alert(`✅ Yeni Danışan Başarıyla Eklendi!\n\nKod: ${code}\nİsim: ${name}`);
+        codeInput.value = "";
+        nameInput.value = "";
+        await populateClientSelect();
+
     } catch (e) {
         console.error("Hata (addNewClient):", e);
+        alert("❌ Danışan eklenirken bir hata oluştu: " + e.message);
     }
 };
 
