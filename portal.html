@@ -63,10 +63,13 @@
                     <div class="booking-sidebar-card">
                         <h3>Randevu Talebi Oluştur</h3>
                         <form id="adminAddAppointmentForm" onsubmit="window.addNewAppointment(event)">
-                            <div class="form-group">
-                                <label for="appClientName">Adınız Soyadınız:</label>
-                                <input type="text" id="appClientName" placeholder="Örn: Ahmet Yılmaz" required>
-                            </div>
+                  <div class="form-group">
+                        <label for="appClientSelect">Danışan Seçin:</label>
+                            <select id="appClientSelect" required>
+                                    <option value="">Lütfen Danışan Seçin</option>
+                                    <!-- Die Klienten werden hier automatisch aus Firebase/JavaScript geladen -->
+                        </select>
+                </div>
 
                             <div class="form-group">
                                 <label for="appDate">Seçilen Tarih:</label>
