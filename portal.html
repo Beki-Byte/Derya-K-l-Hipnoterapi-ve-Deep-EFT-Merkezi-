@@ -53,7 +53,43 @@
             <div class="dashboard-section">
                 <h3><i class="fas fa-calendar-alt"></i> İnteraktif Randevu Takvimi</h3>
                 <p class="section-subtext">Detayları görmek veya randevuyu iptal etmek için üzerine tıklayın.</p>
-                <div id="masterCalendar" class="calendar-wrapper-box"></div>
+                
+                <div class="calendar-layout-grid">
+                    <div class="calendar-wrapper-box">
+                        <div id="masterCalendar"></div>
+                    </div>
+
+                    <!-- Das Formular für deine Mutter (wie im Screenshot, ohne Mail/Telefon) -->
+                    <div class="booking-sidebar-card">
+                        <h3>Randevu Talebi Oluştur</h3>
+                        <form id="adminAddAppointmentForm" onsubmit="window.addNewAppointment(event)">
+                            <div class="form-group">
+                                <label for="appClientName">Adınız Soyadınız:</label>
+                                <input type="text" id="appClientName" placeholder="Örn: Ahmet Yılmaz" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="appDate">Seçilen Tarih:</label>
+                                <input type="date" id="appDate" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="appTime">İstediğiniz Saat:</label>
+                                <input type="time" id="appTime" required style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px;">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="appServiceType">Terapi Türü:</label>
+                                <select id="appServiceType" required>
+                                    <option value="Hipnoterapi">Hipnoterapi (170 €)</option>
+                                    <option value="Deep EFT / Diğer">Deep EFT / Diğer Terapiler (65 € / Saat)</option>
+                                </select>
+                            </div>
+
+                            <button type="submit" class="btn-submit-booking">Randevu Oluştur</button>
+                        </form>
+                    </div>
+                </div>
             </div>
 
             <div class="dashboard-section">
